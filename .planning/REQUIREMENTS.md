@@ -119,27 +119,27 @@ Which phases cover which requirements. Updated during roadmap creation.
 | RSLT-03 | Phase 1 | Pending |
 | RSLT-04 | Phase 1 | Pending |
 | LAYT-01 | Phase 1 | Pending |
-| LAYT-02 | TBD | Pending |
-| EDIT-01 | TBD | Pending |
-| EDIT-02 | TBD | Pending |
-| COUR-01 | TBD | Pending |
-| COUR-02 | TBD | Pending |
-| COUR-03 | TBD | Pending |
-| COUR-04 | TBD | Pending |
-| COUR-05 | TBD | Pending |
-| AI-01 | TBD | Pending |
-| AI-02 | TBD | Pending |
-| AI-03 | TBD | Pending |
-| DASH-01 | TBD | Pending |
-| DASH-02 | TBD | Pending |
-| DASH-03 | TBD | Pending |
 | DASH-04 | Phase 1 | Pending |
+| COUR-01 | Phase 2 | Pending |
+| COUR-02 | Phase 2 | Pending |
+| COUR-03 | Phase 2 | Pending |
+| COUR-04 | Phase 2 | Pending |
+| COUR-05 | Phase 2 | Pending |
+| EDIT-01 | Phase 2 | Pending |
+| EDIT-02 | Phase 2 | Pending |
+| LAYT-02 | Phase 2 | Pending |
+| DASH-01 | Phase 2 | Pending |
+| DASH-02 | Phase 2 | Pending |
+| DASH-03 | Phase 2 | Pending |
+| AI-01 | Phase 3 | Pending |
+| AI-02 | Phase 3 | Pending |
+| AI-03 | Phase 3 | Pending |
 
 **Coverage:**
-- v1 requirements: 28 total
-- Mapped to phases: 15
-- Unmapped (TBD — roadmapper will assign): 13
+- v1 requirements: 29 total
+- Mapped to phases: 29
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-12*
-*Last updated: 2026-03-12 after initial definition*
+*Last updated: 2026-03-12 — traceability completed during roadmap creation (all 29 requirements mapped)*
