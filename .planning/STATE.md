@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Completed 01-core-flow plan 01-04 (Log Streaming Pipeline)
-last_updated: "2026-03-13T08:29:10.767Z"
+stopped_at: Completed 01-core-flow plan 01-05 (Artifact Collection and Results Display)
+last_updated: "2026-03-13T08:42:09.055Z"
 last_activity: 2026-03-12 — Roadmap created; requirements mapped; ready to plan Phase 1
 progress:
   total_phases: 3
   completed_phases: 0
   total_plans: 6
-  completed_plans: 4
+  completed_plans: 5
   percent: 0
 ---
 
@@ -54,6 +54,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 01-core-flow P02 | 10 | 2 tasks | 17 files |
 | Phase 01-core-flow P03 | 15 | 2 tasks | 13 files |
 | Phase 01-core-flow P04 | 8 | 2 tasks | 19 files |
+| Phase 01-core-flow P05 | 9 | 2 tasks | 18 files |
 
 ## Accumulated Context
 
@@ -79,6 +80,9 @@ Recent decisions affecting current work:
 - [Phase 01-core-flow]: WS router registered at /api/v1/ws prefix (separate from /api/v1/jobs) to avoid path ambiguity between WS and REST job routes
 - [Phase 01-core-flow]: useLogStream uses autoScrollRef (not state) for scroll tracking to avoid stale closure in xterm onScroll callback
 - [Phase 01-core-flow]: Results tab locked (disabled) while run is active — auto-switches on complete via polling
+- [Phase 01-core-flow]: ORFS METRICS2.1 key names used in parse_ppa_metrics: timing__setup__ws for WNS — verify against real ORFS run during integration testing
+- [Phase 01-core-flow]: generate_png permanent fast-path documented in tile_generator.py; Phase 2 tiled viewer must not remove PNG path (CLAUDE.md constraint)
+- [Phase 01-core-flow]: Artifacts endpoint uses _try_presign() returning None on ClientError for missing artifacts — allows partial presigned URL responses
 
 ### Pending Todos
 
@@ -92,6 +96,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-13T08:29:10.763Z
-Stopped at: Completed 01-core-flow plan 01-04 (Log Streaming Pipeline)
+Last session: 2026-03-13T08:42:09.051Z
+Stopped at: Completed 01-core-flow plan 01-05 (Artifact Collection and Results Display)
 Resume file: None

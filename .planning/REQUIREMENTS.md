@@ -22,10 +22,10 @@
 
 ### Results & Artifacts
 
-- [ ] **RSLT-01**: User sees PPA metrics (worst negative slack, total negative slack, DRC violation count, core area, total power) after job completes, parsed from ORFS reports
-- [ ] **RSLT-02**: User can download completed job artifacts (GDS, DEF, timing reports) via download links backed by MinIO
-- [ ] **RSLT-03**: User sees a static layout PNG snapshot within seconds of job completion (fast-path KLayout generation, always present)
-- [ ] **RSLT-04**: User can view the full run history for a project, with each run showing status, timestamp, target stage, and key PPA metrics
+- [x] **RSLT-01**: User sees PPA metrics (worst negative slack, total negative slack, DRC violation count, core area, total power) after job completes, parsed from ORFS reports
+- [x] **RSLT-02**: User can download completed job artifacts (GDS, DEF, timing reports) via download links backed by MinIO
+- [x] **RSLT-03**: User sees a static layout PNG snapshot within seconds of job completion (fast-path KLayout generation, always present)
+- [x] **RSLT-04**: User can view the full run history for a project, with each run showing status, timestamp, target stage, and key PPA metrics
 
 ### Layout Viewer
 
@@ -114,10 +114,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | JOB-03 | Phase 1 | Complete |
 | JOB-04 | Phase 1 | Complete |
 | JOB-05 | Phase 1 | Complete |
-| RSLT-01 | Phase 1 | Pending |
-| RSLT-02 | Phase 1 | Pending |
-| RSLT-03 | Phase 1 | Pending |
-| RSLT-04 | Phase 1 | Pending |
+| RSLT-01 | Phase 1 | Complete |
+| RSLT-02 | Phase 1 | Complete |
+| RSLT-03 | Phase 1 | Complete |
+| RSLT-04 | Phase 1 | Complete |
 | LAYT-01 | Phase 1 | Pending |
 | DASH-04 | Phase 1 | Complete |
 | COUR-01 | Phase 2 | Pending |
