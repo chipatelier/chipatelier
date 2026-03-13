@@ -67,7 +67,7 @@ services:
     build:
       context: ./worker
     command: >
-      celery -A worker.celery_app worker
+      celery -A celery_app worker
       -Q orfs_jobs
       -c ${ORFS_WORKER_CONCURRENCY:-4}
       --loglevel=info
@@ -87,7 +87,7 @@ services:
     build:
       context: ./worker
     command: >
-      celery -A worker.celery_app worker
+      celery -A celery_app worker
       -Q background
       -c ${BACKGROUND_WORKER_CONCURRENCY:-2}
       --loglevel=info

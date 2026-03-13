@@ -28,4 +28,6 @@ RUN uv pip install --system --no-cache \
 # Copy worker source
 COPY . .
 
-CMD ["celery", "-A", "worker.celery_app", "worker", "--loglevel=info"]
+# COPY . . puts contents of worker/ directly into /app/ (celery_app.py, tasks/, container/)
+# so the Celery app module is "celery_app", not "worker.celery_app"
+CMD ["celery", "-A", "celery_app", "worker", "--loglevel=info"]
