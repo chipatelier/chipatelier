@@ -17,8 +17,8 @@
 - [x] **JOB-01**: User can create a project and upload Verilog source files and a config.mk
 - [x] **JOB-02**: User can submit a job that runs their design through the full ORFS flow in an isolated Docker container (no network access, cgroup resource limits)
 - [ ] **JOB-03**: User sees live log output streaming in a browser terminal (xterm.js) during job execution
-- [ ] **JOB-04**: User sees current job status (queued / running / complete / failed / cancelled) and stage-level progress (synthesis → floorplan → place → cts → route → gds)
-- [ ] **JOB-05**: User can cancel a running job, which stops the container and marks the job cancelled
+- [x] **JOB-04**: User sees current job status (queued / running / complete / failed / cancelled) and stage-level progress (synthesis → floorplan → place → cts → route → gds)
+- [x] **JOB-05**: User can cancel a running job, which stops the container and marks the job cancelled
 
 ### Results & Artifacts
 
@@ -112,8 +112,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | JOB-01 | Phase 1 | Complete |
 | JOB-02 | Phase 1 | Complete |
 | JOB-03 | Phase 1 | Pending |
-| JOB-04 | Phase 1 | Pending |
-| JOB-05 | Phase 1 | Pending |
+| JOB-04 | Phase 1 | Complete |
+| JOB-05 | Phase 1 | Complete |
 | RSLT-01 | Phase 1 | Pending |
 | RSLT-02 | Phase 1 | Pending |
 | RSLT-03 | Phase 1 | Pending |

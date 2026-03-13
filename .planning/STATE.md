@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Completed 01-core-flow plan 01-02 (Authentication System)
-last_updated: "2026-03-13T07:59:54.561Z"
+stopped_at: Completed 01-core-flow plan 01-03 (Job Pipeline)
+last_updated: "2026-03-13T08:17:49.050Z"
 last_activity: 2026-03-12 — Roadmap created; requirements mapped; ready to plan Phase 1
 progress:
   total_phases: 3
   completed_phases: 0
   total_plans: 6
-  completed_plans: 2
+  completed_plans: 3
   percent: 0
 ---
 
@@ -52,6 +52,7 @@ Progress: [░░░░░░░░░░] 0%
 *Updated after each plan completion*
 | Phase 01-core-flow P01 | 8 | 2 tasks | 59 files |
 | Phase 01-core-flow P02 | 10 | 2 tasks | 17 files |
+| Phase 01-core-flow P03 | 15 | 2 tasks | 13 files |
 
 ## Accumulated Context
 
@@ -71,6 +72,9 @@ Recent decisions affecting current work:
 - [Phase 01-core-flow]: Two dedicated Celery worker processes (orfs-worker for orfs_jobs, background-worker for tiles/VNC/grading) — architectural lock, never merge
 - [Phase 01-core-flow]: Cookie path set to /api/v1/auth (not /api/v1/auth/refresh) — covers both logout and refresh while keeping cookie away from general API routes
 - [Phase 01-core-flow]: TestClient cookie helper pattern: extract Set-Cookie header and pass cookies= kwarg explicitly in logout/refresh tests; do not rely on automatic cookie jar forwarding
+- [Phase 01-core-flow]: Use app.dependency_overrides not mock.patch for FastAPI dependencies in tests — FastAPI captures function reference at route registration time
+- [Phase 01-core-flow]: Import Celery tasks inside route handler body to break circular imports between backend/ and worker/; patch at worker.tasks.orfs_job level in tests
+- [Phase 01-core-flow]: storage_opt size= commented out in ContainerManager — overlay2 + pquota mount option not guaranteed on RHEL/Rocky 9; disk quotas at OS level as alternative
 
 ### Pending Todos
 
@@ -84,6 +88,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-13T07:59:54.557Z
-Stopped at: Completed 01-core-flow plan 01-02 (Authentication System)
+Last session: 2026-03-13T08:17:49.047Z
+Stopped at: Completed 01-core-flow plan 01-03 (Job Pipeline)
 Resume file: None
