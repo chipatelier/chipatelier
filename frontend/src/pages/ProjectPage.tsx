@@ -16,6 +16,15 @@ import { RunHistoryTable } from "../components/RunHistoryTable";
 
 const ACTIVE_STATUSES = new Set(["queued", "starting", "running"]);
 
+const STAGES = [
+  { value: "synth",     label: "Synthesis" },
+  { value: "floorplan", label: "Floorplan" },
+  { value: "place",     label: "Placement" },
+  { value: "cts",       label: "CTS" },
+  { value: "route",     label: "Route" },
+  { value: "gds",       label: "GDS (full flow)" },
+];
+
 export default function ProjectPage(): React.ReactElement {
   const { id: projectId } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -25,6 +34,7 @@ export default function ProjectPage(): React.ReactElement {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [targetStage, setTargetStage] = useState("route");
   const [uploadFiles_, setUploadFiles_] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
 
@@ -48,7 +58,7 @@ export default function ProjectPage(): React.ReactElement {
     try {
       const resp = await submitJob({
         project_id: projectId,
-        target_stage: "gds",
+        target_stage: targetStage,
       });
       // Refresh runs list and navigate to new run
       const updated = await listRuns(projectId);
@@ -100,23 +110,44 @@ export default function ProjectPage(): React.ReactElement {
         </nav>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h2 style={{ margin: 0, fontSize: 20, color: "#f0f6fc" }}>{project?.name}</h2>
-          <button
-            onClick={handleNewRun}
-            disabled={hasActiveRun || submitting}
-            title={hasActiveRun ? "Cancel the active run before starting a new one" : "Start a new ORFS run"}
-            style={{
-              padding: "6px 14px",
-              background: hasActiveRun || submitting ? "#21262d" : "#238636",
-              color: hasActiveRun || submitting ? "#6e7681" : "#fff",
-              border: `1px solid ${hasActiveRun || submitting ? "#30363d" : "transparent"}`,
-              borderRadius: 6,
-              cursor: hasActiveRun || submitting ? "not-allowed" : "pointer",
-              fontSize: 13,
-              fontWeight: 600,
-            }}
-          >
-            {submitting ? "Submitting..." : hasActiveRun ? "Run Active" : "New Run"}
-          </button>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <select
+              value={targetStage}
+              onChange={(e) => setTargetStage(e.target.value)}
+              disabled={hasActiveRun || submitting}
+              title="Target flow stage"
+              style={{
+                padding: "6px 10px",
+                background: "#161b22",
+                color: hasActiveRun || submitting ? "#6e7681" : "#c9d1d9",
+                border: "1px solid #30363d",
+                borderRadius: 6,
+                fontSize: 13,
+                cursor: hasActiveRun || submitting ? "not-allowed" : "pointer",
+              }}
+            >
+              {STAGES.map((s) => (
+                <option key={s.value} value={s.value}>{s.label}</option>
+              ))}
+            </select>
+            <button
+              onClick={handleNewRun}
+              disabled={hasActiveRun || submitting}
+              title={hasActiveRun ? "Cancel the active run before starting a new one" : "Start a new ORFS run"}
+              style={{
+                padding: "6px 14px",
+                background: hasActiveRun || submitting ? "#21262d" : "#238636",
+                color: hasActiveRun || submitting ? "#6e7681" : "#fff",
+                border: `1px solid ${hasActiveRun || submitting ? "#30363d" : "transparent"}`,
+                borderRadius: 6,
+                cursor: hasActiveRun || submitting ? "not-allowed" : "pointer",
+                fontSize: 13,
+                fontWeight: 600,
+              }}
+            >
+              {submitting ? "Submitting..." : hasActiveRun ? "Run Active" : "New Run"}
+            </button>
+          </div>
         </div>
       </header>
 
