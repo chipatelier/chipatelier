@@ -26,7 +26,8 @@ export interface RunStatusResponse {
   target_stage: string | null;
   created_at: string;
   completed_at: string | null;
-  ppa: Record<string, number | string> | null;
+  ppa: Record<string, number | string | boolean | null> | null;
+  config: Record<string, unknown> | null;
 }
 
 export interface LogHistoryResponse {

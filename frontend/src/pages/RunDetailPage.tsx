@@ -7,16 +7,21 @@
  *   - Run/Cancel button in header area
  *   - Tabs: Logs (default during run) | Results (disabled while running, locked) | Config
  *   - Logs tab: <LogTerminal runId={runId} />
- *   - Results tab: placeholder while running; activates on completion
+ *   - Results tab: <PpaMetricCards> + <LayoutSnapshot> — disabled while running
+ *   - Config tab: raw config JSONB as formatted JSON in <pre> with copy button
  *   - Auto-switch to Results tab when job completes
  *   - Poll job status every 3s when run is active; stop when terminal state
+ *   - Fetch artifacts after job completes; pass to LayoutSnapshot
  */
 import React, { useEffect, useRef, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { getProject as getProjectById } from "../api/projects";
 import { getJobStatus, cancelJob, RunStatusResponse } from "../api/jobs";
+import { getArtifacts, ArtifactURLs } from "../api/artifacts";
 import { LogTerminal } from "../components/LogTerminal";
 import { StageStatusBar } from "../components/StageStatusBar";
+import { PpaMetricCards } from "../components/PpaMetricCards";
+import { LayoutSnapshot } from "../components/LayoutSnapshot";
 import { useStore } from "../store";
 
 type Tab = "logs" | "results" | "config";
@@ -37,6 +42,8 @@ export default function RunDetailPage(): React.ReactElement {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>("logs");
   const [cancelling, setCancelling] = useState(false);
+  const [artifacts, setArtifacts] = useState<ArtifactURLs | null>(null);
+  const [copyDone, setCopyDone] = useState(false);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   function isRunning(status: string | null): boolean {
@@ -45,6 +52,15 @@ export default function RunDetailPage(): React.ReactElement {
 
   function isTerminal(status: string | null): boolean {
     return status ? TERMINAL_STATUSES.has(status) : false;
+  }
+
+  async function fetchArtifacts(id: string): Promise<void> {
+    try {
+      const data = await getArtifacts(id);
+      setArtifacts(data);
+    } catch {
+      // Artifacts not yet ready — silently ignore; LayoutSnapshot shows generating state
+    }
   }
 
   // Fetch initial run status and project name
@@ -56,6 +72,10 @@ export default function RunDetailPage(): React.ReactElement {
         setProjectName(proj.name);
         setRunStatus(runResp.status, runResp.stage_completed);
         setActiveRun(runId);
+        // If already complete on load, fetch artifacts immediately
+        if (runResp.status === "complete") {
+          fetchArtifacts(runId);
+        }
       })
       .catch(() => setError("Failed to load run"))
       .finally(() => setLoading(false));
@@ -80,6 +100,7 @@ export default function RunDetailPage(): React.ReactElement {
         // Auto-switch to Results tab when job completes
         if (updated.status === "complete") {
           setActiveTab("results");
+          fetchArtifacts(runId);
         }
 
         if (isTerminal(updated.status)) {
@@ -109,6 +130,14 @@ export default function RunDetailPage(): React.ReactElement {
     } finally {
       setCancelling(false);
     }
+  }
+
+  function handleCopyConfig(): void {
+    const configText = run?.config ? JSON.stringify(run.config, null, 2) : "";
+    navigator.clipboard.writeText(configText).then(() => {
+      setCopyDone(true);
+      setTimeout(() => setCopyDone(false), 2000);
+    });
   }
 
   if (loading) {
@@ -251,26 +280,29 @@ export default function RunDetailPage(): React.ReactElement {
           </div>
         )}
 
-        {/* Results tab */}
+        {/* Results tab — disabled while running (LOCKED) */}
         {activeTab === "results" && (
-          <div style={{ padding: 24 }}>
-            {runStatus === "complete" && run?.ppa ? (
-              <div>
-                <h3 style={{ color: "#f0f6fc", fontSize: 16, marginBottom: 16 }}>PPA Metrics</h3>
-                <table style={{ borderCollapse: "collapse", fontSize: 13 }}>
-                  <tbody>
-                    {Object.entries(run.ppa).map(([key, value]) => (
-                      <tr key={key} style={{ borderBottom: "1px solid #21262d" }}>
-                        <td style={{ padding: "8px 16px 8px 0", color: "#8b949e", fontWeight: 600 }}>
-                          {key.replace(/_/g, " ")}
-                        </td>
-                        <td style={{ padding: "8px 0", color: "#c9d1d9" }}>
-                          {String(value)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+          <div style={{ padding: 24, overflowY: "auto" }}>
+            {runStatus === "complete" ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+                {/* PPA Metric Cards */}
+                <div>
+                  <h3 style={{ color: "#f0f6fc", fontSize: 15, margin: "0 0 16px 0" }}>
+                    PPA Metrics
+                  </h3>
+                  <PpaMetricCards metrics={run?.ppa as import("../components/PpaMetricCards").PpaMetrics | null} />
+                </div>
+
+                {/* Layout Snapshot with VNC button and download links */}
+                <div>
+                  <h3 style={{ color: "#f0f6fc", fontSize: 15, margin: "0 0 16px 0" }}>
+                    Layout Preview
+                  </h3>
+                  <LayoutSnapshot
+                    runId={runId ?? ""}
+                    artifacts={runStatus === "complete" ? artifacts : null}
+                  />
+                </div>
               </div>
             ) : (
               <p style={{ color: "#8b949e", fontSize: 14 }}>
@@ -280,11 +312,30 @@ export default function RunDetailPage(): React.ReactElement {
           </div>
         )}
 
-        {/* Config tab */}
+        {/* Config tab — raw config JSONB with copy button */}
         {activeTab === "config" && (
-          <div style={{ padding: 24 }}>
-            <h3 style={{ color: "#f0f6fc", fontSize: 16, marginBottom: 12 }}>Config Snapshot</h3>
-            {run?.ppa != null ? (
+          <div style={{ padding: 24, overflowY: "auto" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+              <h3 style={{ color: "#f0f6fc", fontSize: 15, margin: 0 }}>Config Snapshot</h3>
+              {run?.config && (
+                <button
+                  onClick={handleCopyConfig}
+                  style={{
+                    padding: "4px 10px",
+                    background: copyDone ? "#1f4022" : "#21262d",
+                    color: copyDone ? "#3fb950" : "#8b949e",
+                    border: "1px solid #30363d",
+                    borderRadius: 6,
+                    cursor: "pointer",
+                    fontSize: 12,
+                    fontWeight: 500,
+                  }}
+                >
+                  {copyDone ? "Copied!" : "Copy"}
+                </button>
+              )}
+            </div>
+            {run?.config != null ? (
               <pre
                 style={{
                   background: "#161b22",
@@ -292,12 +343,14 @@ export default function RunDetailPage(): React.ReactElement {
                   borderRadius: 6,
                   padding: 16,
                   fontSize: 12,
+                  fontFamily: "monospace",
                   color: "#c9d1d9",
                   overflow: "auto",
                   maxHeight: "60vh",
+                  margin: 0,
                 }}
               >
-                {JSON.stringify(run.ppa, null, 2)}
+                {JSON.stringify(run.config, null, 2)}
               </pre>
             ) : (
               <p style={{ color: "#8b949e", fontSize: 13 }}>
