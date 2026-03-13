@@ -2,6 +2,9 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
+# worker/ is copied to /app so `import worker.celery_app` resolves correctly
+ENV PYTHONPATH=/app
+
 # Install system dependencies including Docker CLI
 RUN apt-get update && apt-get install -y --no-install-recommends \
     docker.io \
