@@ -51,7 +51,7 @@ def test_submit_job(test_client, mock_redis):
     token = _register_and_login(test_client)
     proj_id = _create_project(test_client, token, "submit_proj")
 
-    with patch("worker.tasks.orfs_job.run_orfs_job") as mock_task:
+    with patch("app.core.celery_client.celery_app.send_task") as mock_task:
         mock_result = MagicMock()
         mock_result.id = "celery-task-id-abc123"
         mock_task.delay.return_value = mock_result
@@ -79,7 +79,7 @@ def test_submit_job_wrong_project(test_client):
     """POST /api/v1/jobs/submit returns 404 for nonexistent project."""
     token = _register_and_login(test_client)
 
-    with patch("worker.tasks.orfs_job.run_orfs_job"):
+    with patch("app.core.celery_client.celery_app.send_task"):
         resp = test_client.post(
             "/api/v1/jobs/submit",
             json={"project_id": str(uuid.uuid4()), "target_stage": "gds"},
@@ -94,7 +94,7 @@ def test_submit_job_other_users_project(test_client):
     token_other = _register_and_login(test_client)
     proj_id = _create_project(test_client, token_owner, "owner_proj")
 
-    with patch("worker.tasks.orfs_job.run_orfs_job"):
+    with patch("app.core.celery_client.celery_app.send_task"):
         resp = test_client.post(
             "/api/v1/jobs/submit",
             json={"project_id": proj_id, "target_stage": "gds"},
@@ -108,7 +108,7 @@ def test_single_active_run_constraint(test_client):
     token = _register_and_login(test_client)
     proj_id = _create_project(test_client, token, "conflict_proj")
 
-    with patch("worker.tasks.orfs_job.run_orfs_job") as mock_task:
+    with patch("app.core.celery_client.celery_app.send_task") as mock_task:
         mock_result = MagicMock()
         mock_result.id = "task-1"
         mock_task.delay.return_value = mock_result
@@ -135,7 +135,7 @@ def test_get_job_status(test_client):
     token = _register_and_login(test_client)
     proj_id = _create_project(test_client, token, "status_proj")
 
-    with patch("worker.tasks.orfs_job.run_orfs_job") as mock_task:
+    with patch("app.core.celery_client.celery_app.send_task") as mock_task:
         mock_result = MagicMock()
         mock_result.id = "task-abc"
         mock_task.delay.return_value = mock_result
@@ -170,7 +170,7 @@ def test_get_job_status_ownership(test_client):
     token_other = _register_and_login(test_client)
     proj_id = _create_project(test_client, token_owner, "status_own_proj")
 
-    with patch("worker.tasks.orfs_job.run_orfs_job") as mock_task:
+    with patch("app.core.celery_client.celery_app.send_task") as mock_task:
         mock_result = MagicMock()
         mock_result.id = "task-xyz"
         mock_task.delay.return_value = mock_result
@@ -191,7 +191,7 @@ def test_cancel_queued_job(test_client):
     token = _register_and_login(test_client)
     proj_id = _create_project(test_client, token, "cancel_proj")
 
-    with patch("worker.tasks.orfs_job.run_orfs_job") as mock_task:
+    with patch("app.core.celery_client.celery_app.send_task") as mock_task:
         mock_result = MagicMock()
         mock_result.id = "task-cancel"
         mock_task.delay.return_value = mock_result
@@ -203,7 +203,7 @@ def test_cancel_queued_job(test_client):
         )
     run_id = submit_resp.json()["run_id"]
 
-    with patch("worker.celery_app.app") as mock_celery:
+    with patch("app.core.celery_client.celery_app") as mock_celery:
         cancel_resp = test_client.delete(f"/api/v1/jobs/{run_id}", headers=auth_headers(token))
 
     assert cancel_resp.status_code == 200, cancel_resp.text
@@ -217,7 +217,7 @@ def test_cancel_completed_job_returns_400(test_client, async_session):
     token = _register_and_login(test_client)
     proj_id = _create_project(test_client, token, "cancel400_proj")
 
-    with patch("worker.tasks.orfs_job.run_orfs_job") as mock_task:
+    with patch("app.core.celery_client.celery_app.send_task") as mock_task:
         mock_result = MagicMock()
         mock_result.id = "task-done"
         mock_task.delay.return_value = mock_result
@@ -232,11 +232,11 @@ def test_cancel_completed_job_returns_400(test_client, async_session):
     # Simulate job completion by patching the cancel endpoint to see a completed run
     # We need to directly manipulate the DB - use the cancel+resubmit pattern
     # First cancel it
-    with patch("worker.celery_app.app"):
+    with patch("app.core.celery_client.celery_app"):
         test_client.delete(f"/api/v1/jobs/{run_id}", headers=auth_headers(token))
 
     # Now try to cancel again — should return 400 (already cancelled)
-    with patch("worker.celery_app.app"):
+    with patch("app.core.celery_client.celery_app"):
         cancel_again = test_client.delete(f"/api/v1/jobs/{run_id}", headers=auth_headers(token))
     assert cancel_again.status_code == 400
 
@@ -247,7 +247,7 @@ def test_config_overrides_stored(test_client):
     proj_id = _create_project(test_client, token, "config_proj")
 
     overrides = {"CLOCK_PERIOD": "5", "CORE_UTILIZATION": "40"}
-    with patch("worker.tasks.orfs_job.run_orfs_job") as mock_task:
+    with patch("app.core.celery_client.celery_app.send_task") as mock_task:
         mock_result = MagicMock()
         mock_result.id = "task-cfg"
         mock_task.delay.return_value = mock_result

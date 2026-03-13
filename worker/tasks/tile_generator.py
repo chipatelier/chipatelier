@@ -12,12 +12,12 @@ import os
 import tempfile
 from pathlib import Path
 
-from worker.celery_app import app
+from celery_app import app
 
 logger = logging.getLogger(__name__)
 
 
-@app.task(name="worker.tasks.tile_generator.generate_png", queue="background", bind=True)
+@app.task(name="tasks.tile_generator.generate_png", queue="background", bind=True)
 def generate_png(self, run_id: str, workspace: str) -> None:
     """Generate static layout PNG using KLayout Python API (headless, no X11 required).
 

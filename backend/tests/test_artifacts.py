@@ -50,7 +50,7 @@ def test_artifacts_404_when_no_artifact_path(test_client, mock_s3):
     token = _register_and_login(test_client)
     proj_id = _create_project(test_client, token, "no_art_proj")
 
-    with patch("worker.tasks.orfs_job.run_orfs_job") as mock_task:
+    with patch("app.core.celery_client.celery_app.send_task") as mock_task:
         mock_result = MagicMock()
         mock_result.id = "task-id-no-artifact"
         mock_task.delay.return_value = mock_result
@@ -76,7 +76,7 @@ def test_artifacts_returns_presigned_urls(test_client, async_session, mock_s3):
     token = _register_and_login(test_client)
     proj_id = _create_project(test_client, token, "art_url_proj")
 
-    with patch("worker.tasks.orfs_job.run_orfs_job") as mock_task:
+    with patch("app.core.celery_client.celery_app.send_task") as mock_task:
         mock_result = MagicMock()
         mock_result.id = "task-id-artifact-urls"
         mock_task.delay.return_value = mock_result

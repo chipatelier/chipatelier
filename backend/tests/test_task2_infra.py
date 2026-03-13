@@ -99,20 +99,20 @@ class TestCeleryConfig:
         """orfs_job tasks are routed to orfs_jobs queue."""
         sys.path.insert(0, "/opt/developments/chipatelier")
         from worker.celeryconfig import task_routes
-        assert "worker.tasks.orfs_job.*" in task_routes
-        assert task_routes["worker.tasks.orfs_job.*"]["queue"] == "orfs_jobs"
+        assert "tasks.orfs_job.*" in task_routes
+        assert task_routes["tasks.orfs_job.*"]["queue"] == "orfs_jobs"
 
     def test_tile_generator_route(self):
         """tile_generator tasks are routed to background queue."""
         from worker.celeryconfig import task_routes
-        assert "worker.tasks.tile_generator.*" in task_routes
-        assert task_routes["worker.tasks.tile_generator.*"]["queue"] == "background"
+        assert "tasks.tile_generator.*" in task_routes
+        assert task_routes["tasks.tile_generator.*"]["queue"] == "background"
 
     def test_vnc_session_route(self):
         """vnc_session tasks are routed to background queue."""
         from worker.celeryconfig import task_routes
-        assert "worker.tasks.vnc_session.*" in task_routes
-        assert task_routes["worker.tasks.vnc_session.*"]["queue"] == "background"
+        assert "tasks.vnc_session.*" in task_routes
+        assert task_routes["tasks.vnc_session.*"]["queue"] == "background"
 
 
 class TestAlembicMigration:

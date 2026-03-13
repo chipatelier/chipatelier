@@ -2,5 +2,5 @@
 from celery import Celery
 
 app = Celery("chipatelier")
-app.config_from_object("worker.celeryconfig")
-app.autodiscover_tasks(["worker.tasks"])
+app.config_from_object("celeryconfig")
+app.autodiscover_tasks(["tasks"])

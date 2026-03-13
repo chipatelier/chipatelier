@@ -1,7 +1,7 @@
 """VNC session lifecycle task — spawns noVNC containers with DEF pre-loaded."""
 import logging
 
-from worker.celery_app import app
+from celery_app import app
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +45,7 @@ def start_vnc_container(session_id: str, artifact_path: str, port: int) -> str:
     return container.id
 
 
-@app.task(name="worker.tasks.vnc_session.start_vnc", queue="background")
+@app.task(name="tasks.vnc_session.start_vnc", queue="background")
 def start_vnc(session_id: str) -> None:
     """Celery task: start a VNC session container for interactive OpenROAD viewing.
 

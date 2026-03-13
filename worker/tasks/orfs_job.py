@@ -22,8 +22,8 @@ import redis
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
 
-from worker.celery_app import app
-from worker.container.manager import ContainerManager
+from celery_app import app
+from container.manager import ContainerManager
 
 # ---------------------------------------------------------------------------
 # Stage transition detection — patterns match ORFS log output
@@ -53,7 +53,7 @@ LOG_BUFFER_TTL = 86400
 # ---------------------------------------------------------------------------
 
 @app.task(
-    name="worker.tasks.orfs_job.run_orfs_job",
+    name="tasks.orfs_job.run_orfs_job",
     queue="orfs_jobs",
     bind=True,
     acks_late=True,
@@ -175,7 +175,7 @@ def run_orfs_job(self, run_id: str) -> None:
         if exit_code == 0:
             # Dispatch background PNG generation task (plan 01-05 implements the body)
             try:
-                from worker.tasks.tile_generator import generate_png
+                from tasks.tile_generator import generate_png
                 generate_png.delay(run_id, workspace)
             except Exception:
                 pass  # tile generation is a background enhancement, not critical

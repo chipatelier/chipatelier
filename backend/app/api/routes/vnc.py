@@ -141,10 +141,10 @@ async def start_vnc_session(
     await db.commit()
     await db.refresh(vnc_session)
 
-    # Dispatch Celery task to spawn the VNC container
-    from worker.tasks.vnc_session import start_vnc  # noqa: PLC0415 — avoid circular import
+    # Dispatch via send_task — backend and worker run in separate containers
+    from app.core.celery_client import celery_app as _celery
 
-    start_vnc.delay(str(vnc_session.id))
+    _celery.send_task("tasks.vnc_session.start_vnc", args=[str(vnc_session.id)])
 
     # Generate HMAC-signed VNC token (VNC_TOKEN_SECRET, NOT JWT_SECRET_KEY)
     token = create_vnc_token(str(user.id), str(run_id), port)

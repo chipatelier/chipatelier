@@ -86,10 +86,11 @@ async def submit_job(
     await db.commit()
     await db.refresh(run)
 
-    # Dispatch Celery task — import here to avoid circular imports at module load time
-    from worker.tasks.orfs_job import run_orfs_job
+    # Dispatch via send_task — backend and worker run in separate containers,
+    # so we cannot import worker module code directly.
+    from app.core.celery_client import celery_app as _celery
 
-    result = run_orfs_job.delay(str(run.id))
+    result = _celery.send_task("tasks.orfs_job.run_orfs_job", args=[str(run.id)])
 
     # Store Celery task ID for cancel
     run.celery_task_id = result.id
@@ -153,8 +154,8 @@ async def cancel_job(
 
     # Revoke the Celery task — sends SIGTERM to the worker
     if run.celery_task_id:
-        from worker.celery_app import app as celery_app  # noqa: F401 used in tests as mock target
-        celery_app.control.revoke(
+        from app.core.celery_client import celery_app as _celery
+        _celery.control.revoke(
             run.celery_task_id,
             terminate=True,
             signal="SIGTERM",

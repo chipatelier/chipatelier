@@ -18,10 +18,10 @@ result_serializer = "json"
 accept_content = ["json"]
 
 task_routes = {
-    "worker.tasks.orfs_job.*": {"queue": "orfs_jobs"},
-    "worker.tasks.tile_generator.*": {"queue": "background"},
-    "worker.tasks.vnc_session.*": {"queue": "background"},
-    "worker.tasks.watchdog.*": {"queue": "background"},
+    "tasks.orfs_job.*": {"queue": "orfs_jobs"},
+    "tasks.tile_generator.*": {"queue": "background"},
+    "tasks.vnc_session.*": {"queue": "background"},
+    "tasks.watchdog.*": {"queue": "background"},
 }
 
 task_queues = {
@@ -42,7 +42,7 @@ beat_schedule = {
     # Orphaned container watchdog: stop containers whose runs are no longer active.
     # Runs every 2 minutes. Handles worker crash / SIGTERM-survived containers.
     "cleanup-orphaned-containers": {
-        "task": "worker.tasks.watchdog.cleanup_orphaned_containers",
+        "task": "tasks.watchdog.cleanup_orphaned_containers",
         "schedule": 120.0,  # every 2 minutes
     },
 }

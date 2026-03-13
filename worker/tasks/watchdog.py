@@ -12,15 +12,15 @@ This handles the edge case where:
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
 
-from worker.celery_app import app
-from worker.container.manager import ContainerManager
+from celery_app import app
+from container.manager import ContainerManager
 
 # Active statuses — runs in these states are still expected to have a container
 _ACTIVE_STATUSES = {"queued", "starting", "running"}
 
 
 @app.task(
-    name="worker.tasks.watchdog.cleanup_orphaned_containers",
+    name="tasks.watchdog.cleanup_orphaned_containers",
     queue="background",
 )
 def cleanup_orphaned_containers() -> dict:

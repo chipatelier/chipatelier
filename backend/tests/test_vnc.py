@@ -148,7 +148,7 @@ async def test_vnc_start_endpoint(test_client, async_session, mock_docker):
 
     access_token = _make_access_token(str(user.id))
 
-    with patch("worker.tasks.vnc_session.start_vnc") as mock_task:
+    with patch("app.core.celery_client.celery_app.send_task") as mock_task:
         mock_task.delay = MagicMock(return_value=MagicMock(id="celery-task-id"))
         resp = test_client.post(
             f"/api/v1/vnc/start/{run.id}",
