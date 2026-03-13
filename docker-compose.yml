@@ -56,6 +56,9 @@ services:
     environment:
       - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-chipatelier}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-chipatelier}
       - REDIS_URL=redis://redis:6379/0
+    extra_hosts:
+      # Allows the backend to reach the existing di_ollama service on the host.
+      - "host.docker.internal:host-gateway"
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000
     restart: unless-stopped
 
@@ -94,6 +97,8 @@ services:
     env_file: .env
     environment:
       - REDIS_URL=redis://redis:6379/0
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - artifacts_data:/data/artifacts
     restart: unless-stopped
@@ -101,17 +106,18 @@ services:
   frontend:
     build:
       context: ./frontend
-    ports:
-      - "3000:80"
+    # No host port — nginx proxies to this container internally.
     restart: unless-stopped
 
   nginx:
     image: nginx:alpine
     ports:
-      - "80:80"
-      # VNC container ports are mapped to the host network (127.0.0.1) so Nginx
-      # can proxy_pass to them via 127.0.0.1:$vnc_port. VNC containers publish
-      # their websockify port (6080-6099) to the host when spawned by the worker.
+      # Port 80 on the host is owned by di_nginx (another project on this server).
+      # ChipAtelier listens on 8080. To serve on 80/443, add a proxy_pass block
+      # inside di_nginx pointing to localhost:8080.
+      - "8080:80"
+      # VNC container ports are mapped to the host so Nginx can proxy_pass to
+      # 127.0.0.1:$vnc_port when a session is active.
       - "6080-6099:6080-6099"
     volumes:
       - ./infra/nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
