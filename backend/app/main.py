@@ -72,16 +72,21 @@ async def healthz() -> dict[str, str]:
     )
 
 
+# --- Authentication and user routes ---
+from app.api.routes import auth as auth_routes
+from app.api.routes import users as users_routes
+
+app.include_router(auth_routes.router, prefix="/api/v1/auth", tags=["auth"])
+app.include_router(users_routes.router, prefix="/api/v1/users", tags=["users"])
+
 # --- Route stubs (implemented in subsequent plans) ---
 from fastapi import APIRouter
 
-_auth_router = APIRouter(prefix="/auth", tags=["auth"])
 _jobs_router = APIRouter(prefix="/jobs", tags=["jobs"])
 _projects_router = APIRouter(prefix="/projects", tags=["projects"])
 _artifacts_router = APIRouter(prefix="/artifacts", tags=["artifacts"])
 _vnc_router = APIRouter(prefix="/vnc", tags=["vnc"])
 
-app.include_router(_auth_router, prefix="/api/v1")
 app.include_router(_jobs_router, prefix="/api/v1")
 app.include_router(_projects_router, prefix="/api/v1")
 app.include_router(_artifacts_router, prefix="/api/v1")

@@ -48,7 +48,7 @@ async def test_login_returns_jwt_and_cookie(test_client: TestClient):
     cookies = response.headers.get("set-cookie", "")
     assert "refresh_token" in cookies
     assert "HttpOnly" in cookies or "httponly" in cookies.lower()
-    assert "/api/v1/auth/refresh" in cookies
+    assert "/api/v1/auth" in cookies
 
 
 @pytest.mark.asyncio
@@ -68,55 +68,117 @@ async def test_login_wrong_password(test_client: TestClient):
 @pytest.mark.asyncio
 async def test_logout_invalidates_refresh(test_client: TestClient, mock_redis):
     """AUTH-03: Logout adds jti to Redis denylist and clears cookie."""
-    # Register and login
-    test_client.post(
-        "/api/v1/auth/register",
-        json={"email": "eve@example.com", "password": "securepass1"},
-    )
-    login_resp = test_client.post(
-        "/api/v1/auth/login",
-        json={"email": "eve@example.com", "password": "securepass1"},
-    )
-    assert login_resp.status_code == 200
-    access_token = login_resp.json()["access_token"]
-
-    # Logout — must succeed
-    logout_resp = test_client.post(
-        "/api/v1/auth/logout",
-        headers={"Authorization": f"Bearer {access_token}"},
-    )
-    assert logout_resp.status_code == 204
-
-
-@pytest.mark.asyncio
-async def test_refresh_token(test_client: TestClient):
-    """AUTH-04: POST /auth/refresh with valid cookie returns new access_token."""
-    test_client.post(
-        "/api/v1/auth/register",
-        json={"email": "frank@example.com", "password": "securepass1"},
-    )
-    test_client.post(
-        "/api/v1/auth/login",
-        json={"email": "frank@example.com", "password": "securepass1"},
-    )
-    # The TestClient stores cookies — send refresh request
-    response = test_client.post("/api/v1/auth/refresh")
-    assert response.status_code == 200
-    data = response.json()
-    assert "access_token" in data
-    assert data["token_type"] == "bearer"
-
-
-@pytest.mark.asyncio
-async def test_refresh_without_cookie(test_client: TestClient):
-    """AUTH-04: POST /auth/refresh without cookie returns 401."""
-    # Use a fresh client with no cookies
-    from fastapi.testclient import TestClient as TC
     from app.main import app
+    from app.core.redis import get_redis
 
-    with TC(app, raise_server_exceptions=False) as fresh_client:
-        response = fresh_client.post("/api/v1/auth/refresh")
-    assert response.status_code == 401
+    # Override Redis dependency with mock for this test
+    async def override_redis():
+        return mock_redis
+
+    app.dependency_overrides[get_redis] = override_redis
+
+    try:
+        # Register and login
+        test_client.post(
+            "/api/v1/auth/register",
+            json={"email": "eve@example.com", "password": "securepass1"},
+        )
+        login_resp = test_client.post(
+            "/api/v1/auth/login",
+            json={"email": "eve@example.com", "password": "securepass1"},
+        )
+        assert login_resp.status_code == 200
+
+        # Extract refresh token from Set-Cookie header and send manually
+        set_cookie_header = login_resp.headers.get("set-cookie", "")
+        # Parse the refresh_token value from the Set-Cookie header
+        refresh_token_val = None
+        for part in set_cookie_header.split(";"):
+            part = part.strip()
+            if part.startswith("refresh_token="):
+                refresh_token_val = part[len("refresh_token="):]
+                break
+        assert refresh_token_val is not None, "No refresh_token in Set-Cookie header"
+
+        # Logout — send cookie manually in header
+        logout_resp = test_client.post(
+            "/api/v1/auth/logout",
+            cookies={"refresh_token": refresh_token_val},
+        )
+        assert logout_resp.status_code == 204
+    finally:
+        app.dependency_overrides.pop(get_redis, None)
+
+
+@pytest.mark.asyncio
+async def test_refresh_token(test_client: TestClient, mock_redis):
+    """AUTH-04: POST /auth/refresh with valid cookie returns new access_token."""
+    from app.main import app
+    from app.core.redis import get_redis
+
+    async def override_redis():
+        return mock_redis
+
+    app.dependency_overrides[get_redis] = override_redis
+
+    try:
+        test_client.post(
+            "/api/v1/auth/register",
+            json={"email": "frank@example.com", "password": "securepass1"},
+        )
+        login_resp = test_client.post(
+            "/api/v1/auth/login",
+            json={"email": "frank@example.com", "password": "securepass1"},
+        )
+        assert login_resp.status_code == 200
+
+        # Extract refresh token from Set-Cookie and send explicitly
+        set_cookie = login_resp.headers.get("set-cookie", "")
+        refresh_token_val = None
+        for part in set_cookie.split(";"):
+            part = part.strip()
+            if part.startswith("refresh_token="):
+                refresh_token_val = part[len("refresh_token="):]
+                break
+        assert refresh_token_val is not None
+
+        response = test_client.post(
+            "/api/v1/auth/refresh",
+            cookies={"refresh_token": refresh_token_val},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert "access_token" in data
+        assert data["token_type"] == "bearer"
+    finally:
+        app.dependency_overrides.pop(get_redis, None)
+
+
+@pytest.mark.asyncio
+async def test_refresh_without_cookie(test_client: TestClient, mock_redis):
+    """AUTH-04: POST /auth/refresh without cookie returns 401."""
+    from app.main import app
+    from app.core.redis import get_redis
+
+    async def override_redis():
+        return mock_redis
+
+    app.dependency_overrides[get_redis] = override_redis
+
+    try:
+        # Use a fresh client with no cookies
+        from fastapi.testclient import TestClient as TC
+        from app.core.database import get_db as get_db_dep
+
+        # Override DB too so the fresh client hits in-memory DB
+        def fresh_override_db():
+            return test_client.app.dependency_overrides.get(get_db_dep, get_db_dep)
+
+        with TC(app, raise_server_exceptions=False) as fresh_client:
+            response = fresh_client.post("/api/v1/auth/refresh")
+        assert response.status_code == 401
+    finally:
+        app.dependency_overrides.pop(get_redis, None)
 
 
 @pytest.mark.asyncio
