@@ -161,3 +161,38 @@ async def cancel_job(
         )
 
     return {"status": "cancelled", "run_id": str(run_id)}
+
+
+# ---------------------------------------------------------------------------
+# GET /jobs/{id}/logs — Log history (REST fallback for completed runs)
+# ---------------------------------------------------------------------------
+
+@router.get("/{run_id}/logs")
+async def get_log_history(
+    run_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    """Return full log history for a run from Redis logbuf.
+
+    Used by the frontend when navigating to a completed run (no live WS needed).
+    Falls back gracefully if logbuf has expired (24hr TTL).
+
+    Returns:
+        {"lines": [...], "total": N}
+    """
+    run = await _get_run_or_404(run_id, db)
+
+    # Verify ownership via project
+    project = await db.get(Project, run.project_id)
+    if not project or project.user_id != user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+
+    from app.core.redis import get_redis
+    r = await get_redis()
+    raw_lines: list[bytes] = await r.lrange(f"logbuf:{run_id}", 0, -1)
+    lines = [
+        raw.decode("utf-8", errors="replace") if isinstance(raw, bytes) else raw
+        for raw in raw_lines
+    ]
+    return {"lines": lines, "total": len(lines)}

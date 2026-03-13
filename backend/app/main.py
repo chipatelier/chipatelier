@@ -77,11 +77,13 @@ from app.api.routes import auth as auth_routes
 from app.api.routes import users as users_routes
 from app.api.routes.projects import router as projects_router
 from app.api.routes.jobs import router as jobs_router
+from app.api.websocket import router as ws_router
 
 app.include_router(auth_routes.router, prefix="/api/v1/auth", tags=["auth"])
 app.include_router(users_routes.router, prefix="/api/v1/users", tags=["users"])
 app.include_router(projects_router, prefix="/api/v1")
 app.include_router(jobs_router, prefix="/api/v1")
+app.include_router(ws_router, prefix="/api/v1/ws", tags=["websocket"])
 
 # --- Route stubs (implemented in subsequent plans) ---
 from fastapi import APIRouter

@@ -38,14 +38,18 @@ def _make_fake_pubsub(lines: list[str]):
 # ---------------------------------------------------------------------------
 
 def test_invalid_token(test_client):
-    """WS endpoint rejects connection with invalid token (close code 4008)."""
+    """WS endpoint rejects connection with invalid token.
+
+    The TestClient raises WebSocketDisconnect when the server closes the connection
+    before or immediately after the context manager enters.
+    """
     run_id = str(uuid.uuid4())
-    with test_client.websocket_connect(
-        f"/api/v1/ws/jobs/{run_id}/logs/stream?token=not-a-valid-jwt"
-    ) as ws:
-        # Server closes connection — websocket_connect raises or ws has close code
-        # TestClient raises WebSocketDisconnect on close
-        with pytest.raises(Exception):
+    from starlette.websockets import WebSocketDisconnect as StarletteWSDC
+
+    with pytest.raises((StarletteWSDC, Exception)):
+        with test_client.websocket_connect(
+            f"/api/v1/ws/jobs/{run_id}/logs/stream?token=not-a-valid-jwt"
+        ) as ws:
             ws.receive_text()
 
 
