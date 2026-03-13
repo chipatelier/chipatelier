@@ -1,7 +1,8 @@
 # Phase 1: Core Flow - Context
 
 **Gathered:** 2026-03-13
-**Status:** Ready for planning
+**Updated:** 2026-03-13 (v2 spec gap amendments)
+**Status:** Ready for planning — 01-07 plan needed for v2 gaps
 
 <domain>
 ## Phase Boundary
@@ -47,6 +48,43 @@ Full RTL-to-GDS pipeline in the browser: user authentication, project creation w
 - Error state handling for failed jobs in terminal vs. results tab
 - Storage usage display placement within the UI (DASH-04 requirement: show "X GB of Y GB used")
 
+### v2 Spec Amendments (gaps for 01-07-PLAN)
+
+#### Database — pgvector
+- Include `pgvector` extension in the PostgreSQL Docker image from day one
+- Add `CREATE EXTENSION IF NOT EXISTS vector;` in the initial migration
+- No vector columns needed in Phase 1 — just ensures zero-pain migration when Phase 3 AI adds vector search
+
+#### Job queue architecture
+- Three queues: `high_priority`, `normal`, `background`
+- High-priority drains before normal: instructor reference runs + admin/canary CI runs only
+- Normal queue: all student flow jobs, **round-robin per student** using Redis sorted sets — one student with many queued runs cannot starve other students
+- Background queue: dedicated worker (1–2 concurrency), tile generation, checkpoint evaluation, AI hints
+
+#### Container warm pool
+- Pool of pre-started ORFS containers in ready state, size = `MAX_CONCURRENT_JOBS / 2`
+- A replacement container starts immediately when one is claimed from the pool
+- Target start latency: <1 second (vs 5–10s cold start)
+- Implemented in `worker/container/warm_pool.py`
+
+#### Failure handling and auto-retry
+- **Tool crash** (ORFS segfault, OOM kill): auto-retry once after 30 seconds, then mark failed
+- **Design error** (bad Verilog/SDC): no retry — show error + AI explanation
+- **Timeout**: kill container, notify student, no retry
+- **Worker crash**: Redis automatically requeues — new worker picks up
+
+#### Run notes
+- Each run has a `notes` text field (plain text, nullable)
+- **Private by default** — notes are only visible to the student
+- Notes become visible to the instructor only when the student explicitly submits that run for assignment grading
+- UI: small editable text area in the Results tab (or below the run list entry)
+
+#### AI service colocation (MVP)
+- AI routes live inside `backend/app/ai/` — no separate `ai-service` container in MVP
+- Ollama continues as its own container in Docker Compose (separate process, GPU-mappable)
+- `ai-service/` directory in repo is scaffolded but not wired into docker-compose.yml until Phase 3
+- This simplifies Docker Compose for single-server MVP deployments
+
 </decisions>
 
 <code_context>
@@ -76,7 +114,11 @@ Full RTL-to-GDS pipeline in the browser: user authentication, project creation w
 <deferred>
 ## Deferred Ideas
 
-- None — discussion stayed within phase scope
+- GeoJSON vector overlays (congestion heatmap, DRC violation markers, timing critical path polyline) → Phase 2 layout viewer
+- Stage-specific default views (floorplan/placement/CTS/routing/finish) → Phase 2 layout viewer
+- VNC `suspended` state (container pause/resume within 1 hour) → Phase 2 VNC lifecycle
+- Design space exploration / parameter sweep mode → Phase 2 or Phase 3
+- Three-tier design library (instructor-provided + community tiers) → Phase 2
 
 </deferred>
 
