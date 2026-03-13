@@ -38,6 +38,7 @@ class Run(Base):
     config: Mapped[dict | None] = mapped_column(JSONBCompatible, nullable=True)
     stage_metrics: Mapped[dict | None] = mapped_column(JSONBCompatible, nullable=True)
 
+    celery_task_id: Mapped[str | None] = mapped_column(String, nullable=True)
     storage_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

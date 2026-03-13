@@ -4,6 +4,7 @@ Provides: async_session, test_client, mock_docker, mock_s3, mock_redis.
 """
 import asyncio
 import os
+import sys
 from collections.abc import AsyncGenerator
 from typing import Generator
 from unittest.mock import MagicMock, patch
@@ -15,6 +16,11 @@ import pytest_asyncio
 os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
 os.environ.setdefault("REDIS_URL", "redis://localhost:6379/0")
 os.environ.setdefault("JWT_SECRET_KEY", "test-secret-key-for-testing")
+
+# Add project root to sys.path so worker/ package is importable from backend tests
+_project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _project_root not in sys.path:
+    sys.path.insert(0, _project_root)
 
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
