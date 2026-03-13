@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Completed 01-core-flow plan 01-01 (Stack Bootstrap and Wave 0 Infrastructure)
-last_updated: "2026-03-13T07:47:46.266Z"
+stopped_at: Completed 01-core-flow plan 01-02 (Authentication System)
+last_updated: "2026-03-13T07:59:54.561Z"
 last_activity: 2026-03-12 — Roadmap created; requirements mapped; ready to plan Phase 1
 progress:
   total_phases: 3
   completed_phases: 0
   total_plans: 6
-  completed_plans: 1
+  completed_plans: 2
   percent: 0
 ---
 
@@ -51,6 +51,7 @@ Progress: [░░░░░░░░░░] 0%
 
 *Updated after each plan completion*
 | Phase 01-core-flow P01 | 8 | 2 tasks | 59 files |
+| Phase 01-core-flow P02 | 10 | 2 tasks | 17 files |
 
 ## Accumulated Context
 
@@ -68,6 +69,8 @@ Recent decisions affecting current work:
 - [Phase 01-core-flow]: JSONBCompatible TypeDecorator uses JSONB on PostgreSQL and falls back to JSON on SQLite for test isolation
 - [Phase 01-core-flow]: ppa and config are separate JSONB columns on runs table — ppa holds metrics only, config holds config.mk snapshot
 - [Phase 01-core-flow]: Two dedicated Celery worker processes (orfs-worker for orfs_jobs, background-worker for tiles/VNC/grading) — architectural lock, never merge
+- [Phase 01-core-flow]: Cookie path set to /api/v1/auth (not /api/v1/auth/refresh) — covers both logout and refresh while keeping cookie away from general API routes
+- [Phase 01-core-flow]: TestClient cookie helper pattern: extract Set-Cookie header and pass cookies= kwarg explicitly in logout/refresh tests; do not rely on automatic cookie jar forwarding
 
 ### Pending Todos
 
@@ -81,6 +84,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-13T07:47:46.263Z
-Stopped at: Completed 01-core-flow plan 01-01 (Stack Bootstrap and Wave 0 Infrastructure)
+Last session: 2026-03-13T07:59:54.557Z
+Stopped at: Completed 01-core-flow plan 01-02 (Authentication System)
 Resume file: None

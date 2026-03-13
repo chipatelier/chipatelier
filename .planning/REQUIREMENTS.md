@@ -7,10 +7,10 @@
 
 ### Authentication
 
-- [ ] **AUTH-01**: User can create an account with email and password
-- [ ] **AUTH-02**: User can log in and receive a JWT access token (15min, in response body) and an httpOnly refresh cookie (7 days)
-- [ ] **AUTH-03**: User can log out from any page (refresh cookie invalidated)
-- [ ] **AUTH-04**: User session persists across browser refresh via automatic access token renewal using the refresh cookie
+- [x] **AUTH-01**: User can create an account with email and password
+- [x] **AUTH-02**: User can log in and receive a JWT access token (15min, in response body) and an httpOnly refresh cookie (7 days)
+- [x] **AUTH-03**: User can log out from any page (refresh cookie invalidated)
+- [x] **AUTH-04**: User session persists across browser refresh via automatic access token renewal using the refresh cookie
 
 ### Job Lifecycle
 
@@ -56,7 +56,7 @@
 - [ ] **DASH-01**: Student can see an anonymous leaderboard for an assignment showing PPA rankings (WNS, area, power) without revealing other students' names
 - [ ] **DASH-02**: User can compare metrics across multiple runs for the same project in a side-by-side view
 - [ ] **DASH-03**: Instructor can view a class-wide dashboard: per-student run counts, submission status, grade distribution, and current job queue depth
-- [ ] **DASH-04**: User sees their current storage usage prominently in the dashboard (e.g., "1.2 GB of 5 GB used")
+- [x] **DASH-04**: User sees their current storage usage prominently in the dashboard (e.g., "1.2 GB of 5 GB used")
 
 ---
 
@@ -105,10 +105,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| AUTH-01 | Phase 1 | Pending |
-| AUTH-02 | Phase 1 | Pending |
-| AUTH-03 | Phase 1 | Pending |
-| AUTH-04 | Phase 1 | Pending |
+| AUTH-01 | Phase 1 | Complete |
+| AUTH-02 | Phase 1 | Complete |
+| AUTH-03 | Phase 1 | Complete |
+| AUTH-04 | Phase 1 | Complete |
 | JOB-01 | Phase 1 | Complete |
 | JOB-02 | Phase 1 | Complete |
 | JOB-03 | Phase 1 | Pending |
@@ -119,7 +119,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | RSLT-03 | Phase 1 | Pending |
 | RSLT-04 | Phase 1 | Pending |
 | LAYT-01 | Phase 1 | Pending |
-| DASH-04 | Phase 1 | Pending |
+| DASH-04 | Phase 1 | Complete |
 | COUR-01 | Phase 2 | Pending |
 | COUR-02 | Phase 2 | Pending |
 | COUR-03 | Phase 2 | Pending |
