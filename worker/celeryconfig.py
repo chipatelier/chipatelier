@@ -21,6 +21,7 @@ task_routes = {
     "worker.tasks.orfs_job.*": {"queue": "orfs_jobs"},
     "worker.tasks.tile_generator.*": {"queue": "background"},
     "worker.tasks.vnc_session.*": {"queue": "background"},
+    "worker.tasks.watchdog.*": {"queue": "background"},
 }
 
 task_queues = {
@@ -33,3 +34,15 @@ worker_prefetch_multiplier = 1
 
 # Re-queue task on worker crash (safe for idempotent tasks)
 task_acks_late = True
+
+# ---------------------------------------------------------------------------
+# Celery Beat schedule — periodic tasks
+# ---------------------------------------------------------------------------
+beat_schedule = {
+    # Orphaned container watchdog: stop containers whose runs are no longer active.
+    # Runs every 2 minutes. Handles worker crash / SIGTERM-survived containers.
+    "cleanup-orphaned-containers": {
+        "task": "worker.tasks.watchdog.cleanup_orphaned_containers",
+        "schedule": 120.0,  # every 2 minutes
+    },
+}
