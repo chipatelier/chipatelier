@@ -109,12 +109,28 @@ services:
     image: nginx:alpine
     ports:
       - "80:80"
+      # VNC container ports are mapped to the host network (127.0.0.1) so Nginx
+      # can proxy_pass to them via 127.0.0.1:$vnc_port. VNC containers publish
+      # their websockify port (6080-6099) to the host when spawned by the worker.
+      - "6080-6099:6080-6099"
     volumes:
       - ./infra/nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
       - backend
       - frontend
     restart: unless-stopped
+
+  # VNC viewer image — built here but containers are spawned dynamically by the worker.
+  # This service is never started directly; it exists only to trigger a docker build
+  # so the image is available when start_vnc task runs containers.run().
+  vnc-viewer:
+    build:
+      context: ./vnc-container
+    image: chipatelier/vnc-viewer:latest
+    profiles:
+      - build-only  # Never started by docker compose up; image built for worker use
+    volumes:
+      - artifacts_data:/artifacts:ro  # DEF/LEF files from ORFS job runs
 
 volumes:
   postgres_data:

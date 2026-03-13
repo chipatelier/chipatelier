@@ -9,8 +9,9 @@
  * The PNG fast-path is PERMANENT per CLAUDE.md — this component must always
  * render the PNG preview. Phase 2's tiled viewer is additive, not a replacement.
  */
-import React from "react";
+import React, { useState } from "react";
 import type { ArtifactURLs } from "../../api/artifacts";
+import { startVncSession } from "../../api/vnc";
 
 interface Props {
   runId: string;
@@ -49,6 +50,8 @@ export function LayoutSnapshot({ runId, artifacts, onOpenVnc }: Props): React.Re
   const pngUrl = artifacts?.layout_png_url ?? null;
   const hasPng = Boolean(pngUrl);
   const hasArtifacts = Boolean(artifacts);
+  const [vncLoading, setVncLoading] = useState(false);
+  const [vncError, setVncError] = useState<string | null>(null);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -99,21 +102,47 @@ export function LayoutSnapshot({ runId, artifacts, onOpenVnc }: Props): React.Re
 
       {/* Open in VNC viewer button — LOCKED position: directly below PNG */}
       <button
-        onClick={() => onOpenVnc?.(runId)}
+        disabled={vncLoading}
+        onClick={async () => {
+          // If parent provided a handler, delegate to it
+          if (onOpenVnc) {
+            onOpenVnc(runId);
+            return;
+          }
+          // Otherwise call the API directly and open in new tab
+          setVncLoading(true);
+          setVncError(null);
+          try {
+            const result = await startVncSession(runId);
+            window.open(result.vnc_url, "_blank", "noopener,noreferrer");
+          } catch (err: unknown) {
+            const msg =
+              err instanceof Error ? err.message : "Failed to start VNC session";
+            setVncError(msg);
+          } finally {
+            setVncLoading(false);
+          }
+        }}
         style={{
           padding: "8px 16px",
-          background: "#1f6feb",
+          background: vncLoading ? "#161b22" : "#1f6feb",
           color: "#fff",
           border: "none",
           borderRadius: 6,
-          cursor: "pointer",
+          cursor: vncLoading ? "not-allowed" : "pointer",
           fontSize: 13,
           fontWeight: 600,
           alignSelf: "flex-start",
+          opacity: vncLoading ? 0.7 : 1,
         }}
       >
-        Open in VNC Viewer
+        {vncLoading ? "Starting VNC..." : "Open in VNC Viewer"}
       </button>
+      {vncError && (
+        <div style={{ color: "#f85149", fontSize: 12, marginTop: -8 }}>
+          {vncError}
+        </div>
+      )}
 
       {/* Download links — below VNC button */}
       {hasArtifacts && (

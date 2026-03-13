@@ -90,9 +90,7 @@ from app.api.routes.artifacts import router as artifacts_router
 
 app.include_router(artifacts_router, prefix="/api/v1")
 
-# --- Route stubs (implemented in subsequent plans) ---
-from fastapi import APIRouter
+# --- VNC routes (plan 01-06) ---
+from app.api.routes.vnc import router as vnc_router
 
-_vnc_router = APIRouter(prefix="/vnc", tags=["vnc"])
-
-app.include_router(_vnc_router, prefix="/api/v1")
+app.include_router(vnc_router, prefix="/api/v1")
