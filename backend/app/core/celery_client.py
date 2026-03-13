@@ -14,3 +14,11 @@ celery_app = Celery(
     "chipatelier-client",
     broker=os.environ.get("REDIS_URL", "redis://redis:6379/0"),
 )
+
+# Configure task routing to match worker queues
+celery_app.conf.task_routes = {
+    "tasks.orfs_job.*": {"queue": "orfs_jobs"},
+    "tasks.tile_generator.*": {"queue": "background"},
+    "tasks.vnc_session.*": {"queue": "background"},
+    "tasks.watchdog.*": {"queue": "background"},
+}

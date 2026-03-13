@@ -50,6 +50,9 @@ class Settings(BaseSettings):
     # Domain
     ALLOWED_ORIGINS: str = "*"
 
+    # Security - Cookie settings
+    COOKIE_SECURE: bool = False  # Set to True in production with HTTPS
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 

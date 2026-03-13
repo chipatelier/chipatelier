@@ -10,6 +10,7 @@ class SubmitRequest(BaseModel):
     project_id: uuid.UUID
     target_stage: str = "gds"  # synthesis | floorplan | place | cts | route | gds
     config_overrides: dict[str, Any] = {}
+    source_path: str | None = None  # Path to uploaded files in MinIO (e.g., "projects/{id}/v1")
 
 
 class SubmitResponse(BaseModel):

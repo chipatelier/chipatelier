@@ -70,7 +70,7 @@ def run_orfs_job(self, run_id: str) -> None:
         - Log lines published to Redis logs:{run_id} pubsub channel
         - Last 5000 log lines kept in Redis list logbuf:{run_id}
     """
-    from app.core.config import get_settings
+    from config import get_settings
 
     settings = get_settings()
 
@@ -199,6 +199,10 @@ def run_orfs_job(self, run_id: str) -> None:
 def _download_workspace(settings: object, artifact_path: str, workspace: str) -> None:
     """Download all files from MinIO artifact_path prefix into the workspace directory.
 
+    Creates ORFS-compatible directory structure:
+      /workspace/config.mk (config file)
+      /workspace/src/design/*.v (Verilog files)
+
     If MinIO is unreachable (e.g., in test environments), this function
     silently skips the download — the workspace may be pre-populated.
     """
@@ -214,6 +218,11 @@ def _download_workspace(settings: object, artifact_path: str, workspace: str) ->
             config=Config(signature_version="s3v4"),
             region_name="us-east-1",
         )
+
+        # Create ORFS directory structure
+        src_dir = os.path.join(workspace, "src", "design")
+        os.makedirs(src_dir, exist_ok=True)
+
         paginator = s3.get_paginator("list_objects_v2")
         for page in paginator.paginate(
             Bucket=settings.S3_BUCKET_ARTIFACTS,
@@ -222,7 +231,13 @@ def _download_workspace(settings: object, artifact_path: str, workspace: str) ->
             for obj in page.get("Contents", []):
                 key = obj["Key"]
                 filename = key.split("/")[-1]
-                dest = os.path.join(workspace, filename)
+
+                # config.mk goes to workspace root, Verilog files go to src/design/
+                if filename.endswith(".mk"):
+                    dest = os.path.join(workspace, filename)
+                else:
+                    dest = os.path.join(src_dir, filename)
+
                 s3.download_file(settings.S3_BUCKET_ARTIFACTS, key, dest)
     except Exception:
         # Don't fail the job if source download fails — let ORFS report the error

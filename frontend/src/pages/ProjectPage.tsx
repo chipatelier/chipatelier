@@ -37,6 +37,7 @@ export default function ProjectPage(): React.ReactElement {
   const [targetStage, setTargetStage] = useState("route");
   const [uploadFiles_, setUploadFiles_] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [sourcePath, setSourcePath] = useState<string | null>(null);
 
   const hasActiveRun = runs.some((r) => ACTIVE_STATUSES.has(r.status));
 
@@ -59,6 +60,7 @@ export default function ProjectPage(): React.ReactElement {
       const resp = await submitJob({
         project_id: projectId,
         target_stage: targetStage,
+        source_path: sourcePath || undefined,  // Pass source_path from last upload
       });
       // Refresh runs list and navigate to new run
       const updated = await listRuns(projectId);
@@ -76,7 +78,8 @@ export default function ProjectPage(): React.ReactElement {
     setUploading(true);
     setError(null);
     try {
-      await uploadFiles(projectId, uploadFiles_);
+      const uploadResp = await uploadFiles(projectId, uploadFiles_);
+      setSourcePath(uploadResp.source_path);  // Save source_path for next run
       setUploadFiles_([]);
       // Refresh runs to pick up any status changes
       const updated = await listRuns(projectId);

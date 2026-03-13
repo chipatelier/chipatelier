@@ -81,6 +81,7 @@ async def submit_job(
         status="queued",
         target_stage=body.target_stage,
         config=body.config_overrides if body.config_overrides else None,
+        artifact_path=body.source_path,  # Set artifact_path to source location
     )
     db.add(run)
     await db.commit()

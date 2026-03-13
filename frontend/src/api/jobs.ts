@@ -12,6 +12,7 @@ export interface SubmitRequest {
   project_id: string;
   target_stage?: string;
   config_overrides?: Record<string, unknown>;
+  source_path?: string;  // Path to uploaded files in MinIO
 }
 
 export interface SubmitResponse {

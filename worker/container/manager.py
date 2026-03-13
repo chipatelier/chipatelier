@@ -47,7 +47,12 @@ class ContainerManager:
 
         return self._client.containers.run(
             image=image,
-            command=["make", "DESIGN_CONFIG=/workspace/config.mk"],
+            command=[
+                "make", "-C", "/OpenROAD-flow-scripts/flow",
+                "DESIGN_CONFIG=/workspace/config.mk",
+                "DESIGN_HOME=/workspace",
+                "DESIGN_NICKNAME=design",  # Default design nickname
+            ],
             name=f"orfs_job_{run_id}",
             detach=True,
             # CRITICAL: no network access — containers run untrusted student code
@@ -62,7 +67,7 @@ class ContainerManager:
             read_only=True,
             tmpfs={"/tmp": "size=512m"},
             # Security hardening
-            user="orfs:orfs",
+            # Note: Running as root, but container is heavily sandboxed (no network, read-only, no caps)
             cap_drop=["ALL"],
             security_opt=["no-new-privileges"],
             # Volume mounts

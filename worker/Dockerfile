@@ -23,7 +23,8 @@ RUN uv pip install --system --no-cache \
     "boto3==1.35.*" \
     "pydantic-settings==2.*" \
     "sqlalchemy[asyncio]==2.0.*" \
-    "asyncpg==0.29.*"
+    "asyncpg==0.29.*" \
+    "psycopg2-binary==2.9.*"
 
 # Copy worker source
 COPY . .

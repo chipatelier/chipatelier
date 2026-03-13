@@ -28,7 +28,7 @@ def cleanup_orphaned_containers() -> dict:
 
     Returns a summary dict: {"inspected": N, "stopped": N, "errors": N}
     """
-    from app.core.config import get_settings
+    from config import get_settings
 
     settings = get_settings()
     sync_db_url = settings.DATABASE_URL.replace(
