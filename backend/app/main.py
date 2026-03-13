@@ -85,11 +85,14 @@ app.include_router(projects_router, prefix="/api/v1")
 app.include_router(jobs_router, prefix="/api/v1")
 app.include_router(ws_router, prefix="/api/v1/ws", tags=["websocket"])
 
+# --- Artifacts routes (plan 01-05) ---
+from app.api.routes.artifacts import router as artifacts_router
+
+app.include_router(artifacts_router, prefix="/api/v1")
+
 # --- Route stubs (implemented in subsequent plans) ---
 from fastapi import APIRouter
 
-_artifacts_router = APIRouter(prefix="/artifacts", tags=["artifacts"])
 _vnc_router = APIRouter(prefix="/vnc", tags=["vnc"])
 
-app.include_router(_artifacts_router, prefix="/api/v1")
 app.include_router(_vnc_router, prefix="/api/v1")
