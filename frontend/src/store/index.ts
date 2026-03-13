@@ -1,7 +1,10 @@
 import { create } from "zustand";
 import { AuthSlice, createAuthSlice } from "./authSlice";
-// JobSlice will be added in plan 01-03
+import { JobSlice, createJobSlice } from "./jobSlice";
 
-export const useStore = create<AuthSlice>()((...a) => ({
+export type AppStore = AuthSlice & JobSlice;
+
+export const useStore = create<AppStore>()((...a) => ({
   ...createAuthSlice(...a),
+  ...createJobSlice(...a),
 }));

@@ -2,44 +2,12 @@ import React, { useEffect, useState } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { setupTokenRefreshInterceptor } from "./hooks/useTokenRefresh";
 import { useStore } from "./store";
-import { getMe, refresh, logout as authLogout } from "./api/auth";
+import { getMe, refresh } from "./api/auth";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
-
-// Placeholder until plan 01-03 implements the full project list UI
-function ProjectListPage(): React.ReactElement {
-  const user = useStore((s) => s.user);
-  const clearAuth = useStore((s) => s.clearAuth);
-  const storageMB = user ? (user.storage_used_bytes / 1024 / 1024).toFixed(1) : "0";
-
-  function handleLogout(): void {
-    authLogout()
-      .catch(() => undefined)
-      .finally(() => {
-        clearAuth();
-        window.location.href = "/login";
-      });
-  }
-
-  return (
-    <div style={{ fontFamily: "sans-serif", padding: "2rem" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h1>ChipAtelier</h1>
-        <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
-          {user && (
-            <span style={{ fontSize: "0.875rem", color: "#666" }}>
-              {user.display_name ?? user.email} — {storageMB} MB used
-            </span>
-          )}
-          <button onClick={handleLogout} style={{ cursor: "pointer" }}>
-            Sign out
-          </button>
-        </div>
-      </div>
-      <p>Projects will appear here (implemented in plan 01-03).</p>
-    </div>
-  );
-}
+import ProjectListPage from "./pages/ProjectListPage";
+import ProjectPage from "./pages/ProjectPage";
+import RunDetailPage from "./pages/RunDetailPage";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -98,6 +66,7 @@ export default function App(): React.ReactElement {
           justifyContent: "center",
           fontFamily: "sans-serif",
           color: "#666",
+          background: "#0d1117",
         }}
       >
         Loading...
@@ -108,8 +77,11 @@ export default function App(): React.ReactElement {
   return (
     <BrowserRouter>
       <Routes>
+        {/* Public routes */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+
+        {/* Protected routes */}
         <Route
           path="/projects"
           element={
@@ -118,6 +90,24 @@ export default function App(): React.ReactElement {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/projects/:id"
+          element={
+            <ProtectedRoute>
+              <ProjectPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/projects/:id/runs/:runId"
+          element={
+            <ProtectedRoute>
+              <RunDetailPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Root redirect */}
         <Route path="/" element={<Navigate to="/projects" replace />} />
       </Routes>
     </BrowserRouter>
