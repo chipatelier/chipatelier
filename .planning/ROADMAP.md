@@ -33,10 +33,15 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. User can cancel a running job; the container stops and the job status updates to cancelled
   4. After a job completes, user sees PPA metrics (WNS, TNS, DRC count, area, power), a static layout PNG within seconds, and download links for GDS, DEF, and timing reports
   5. User can launch a VNC tab that opens the OpenROAD Qt GUI with their completed DEF pre-loaded; user sees their current storage usage in the dashboard
-**Plans**: TBD
+**Plans**: 6 plans
 
 Plans:
-- [ ] 01-01: Infrastructure — Docker Compose stack, database schema, Alembic migrations, Celery queue architecture (dedicated orfs_jobs + background workers)
+- [ ] 01-01-PLAN.md — Infrastructure (Docker Compose, DB schema, Alembic migrations, Celery queue architecture, pytest Wave 0)
+- [ ] 01-02-PLAN.md — Authentication (register, login, JWT + httpOnly refresh cookie, session renewal, logout, storage display)
+- [ ] 01-03-PLAN.md — Job pipeline (project create, file upload, ORFS container lifecycle, cgroup limits, orphaned-container watchdog)
+- [ ] 01-04-PLAN.md — Log streaming + navigation UI (Redis pub/sub, WebSocket, xterm.js, StageStatusBar, project/run pages)
+- [ ] 01-05-PLAN.md — Artifacts and results (KLayout PNG generation, PPA metrics parsing, presigned downloads, Results tab)
+- [ ] 01-06-PLAN.md — VNC viewer (noVNC container, HMAC-signed token, Nginx auth_request proxy, DEF pre-load) — Docker Compose stack, database schema, Alembic migrations, Celery queue architecture (dedicated orfs_jobs + background workers)
 - [ ] 01-02: Authentication — register, login, JWT access token + httpOnly refresh cookie, session renewal, logout
 - [ ] 01-03: Job pipeline — project creation, file upload, ORFS container lifecycle, cgroup limits, orphaned-container watchdog
 - [ ] 01-04: Log streaming — Redis pub/sub pipeline, WebSocket endpoint, xterm.js frontend, stage transition detection, LTRIM + TTL guards
