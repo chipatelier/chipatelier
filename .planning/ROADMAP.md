@@ -17,7 +17,7 @@ from a tool into a tutor.
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Core Flow** - Full RTL-to-GDS pipeline in the browser: auth, job execution, live logs, artifacts, VNC viewer, and storage visibility
+- [x] **Phase 1: Core Flow** - Full RTL-to-GDS pipeline in the browser: auth, job execution, live logs, artifacts, VNC viewer, and storage visibility (completed 2026-03-13)
 - [ ] **Phase 2: Learning Layer** - Course and assignment system, config editor, click-to-inspect layout, leaderboard, run comparison, and instructor dashboard
 - [ ] **Phase 3: AI Assistance** - Local Ollama-powered log explainer, config advisor, and context-aware chat — design data stays on-premise
 
@@ -90,6 +90,6 @@ Phases execute in numeric order: 1 → 2 → 3
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Core Flow | 4/6 | In Progress|  |
+| 1. Core Flow | 6/6 | Complete   | 2026-03-13 |
 | 2. Learning Layer | 0/6 | Not started | - |
 | 3. AI Assistance | 0/3 | Not started | - |

@@ -29,7 +29,7 @@
 
 ### Layout Viewer
 
-- [ ] **LAYT-01**: User can launch a VNC viewer tab that opens the OpenROAD Qt GUI with their completed DEF pre-loaded (noVNC → WebSocket proxy via Nginx token routing)
+- [x] **LAYT-01**: User can launch a VNC viewer tab that opens the OpenROAD Qt GUI with their completed DEF pre-loaded (noVNC → WebSocket proxy via Nginx token routing)
 - [ ] **LAYT-02**: User can query layout element details (cell name, instance, net, layer) by providing coordinates via the click-to-inspect API (OpenDB query endpoint on completed DEF)
 
 ### Config Editor
@@ -118,7 +118,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | RSLT-02 | Phase 1 | Complete |
 | RSLT-03 | Phase 1 | Complete |
 | RSLT-04 | Phase 1 | Complete |
-| LAYT-01 | Phase 1 | Pending |
+| LAYT-01 | Phase 1 | Complete |
 | DASH-04 | Phase 1 | Complete |
 | COUR-01 | Phase 2 | Pending |
 | COUR-02 | Phase 2 | Pending |

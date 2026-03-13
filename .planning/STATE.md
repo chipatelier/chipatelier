@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Completed 01-core-flow plan 01-05 (Artifact Collection and Results Display)
-last_updated: "2026-03-13T08:42:09.055Z"
+stopped_at: "Completed 01-core-flow plan 01-06 Task 1; checkpoint:human-verify pending"
+last_updated: "2026-03-13T08:53:28.509Z"
 last_activity: 2026-03-12 — Roadmap created; requirements mapped; ready to plan Phase 1
 progress:
   total_phases: 3
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 6
-  completed_plans: 5
+  completed_plans: 6
   percent: 0
 ---
 
@@ -55,6 +55,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 01-core-flow P03 | 15 | 2 tasks | 13 files |
 | Phase 01-core-flow P04 | 8 | 2 tasks | 19 files |
 | Phase 01-core-flow P05 | 9 | 2 tasks | 18 files |
+| Phase 01-core-flow P06 | 9 | 1 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -83,6 +84,8 @@ Recent decisions affecting current work:
 - [Phase 01-core-flow]: ORFS METRICS2.1 key names used in parse_ppa_metrics: timing__setup__ws for WNS — verify against real ORFS run during integration testing
 - [Phase 01-core-flow]: generate_png permanent fast-path documented in tile_generator.py; Phase 2 tiled viewer must not remove PNG path (CLAUDE.md constraint)
 - [Phase 01-core-flow]: Artifacts endpoint uses _try_presign() returning None on ClientError for missing artifacts — allows partial presigned URL responses
+- [Phase 01-core-flow]: Global VNC session limit checked before idempotency lookup to ensure MAX_VNC_SESSIONS always enforced
+- [Phase 01-core-flow]: VNC token passed to Nginx validation subrequest via X-VNC-Token header (not query string) to prevent token appearing in access.log
 
 ### Pending Todos
 
@@ -96,6 +99,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-13T08:42:09.051Z
-Stopped at: Completed 01-core-flow plan 01-05 (Artifact Collection and Results Display)
+Last session: 2026-03-13T08:53:28.505Z
+Stopped at: Completed 01-core-flow plan 01-06 Task 1; checkpoint:human-verify pending
 Resume file: None
