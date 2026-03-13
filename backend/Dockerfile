@@ -11,13 +11,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Install uv
 RUN pip install --no-cache-dir uv
 
-# Copy dependency files
+# Copy dependency manifest + source together so hatchling can find the package
 COPY pyproject.toml ./
+COPY app ./app
 
-# Install production dependencies
-RUN uv pip install --system --no-cache -e .
+# Install production dependencies (non-editable; editable mode is meaningless in Docker)
+RUN uv pip install --system --no-cache .
 
-# Copy application source
+# Copy remaining files (alembic, tests, etc.)
 COPY . .
 
 EXPOSE 8000
