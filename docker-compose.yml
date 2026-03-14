@@ -63,12 +63,14 @@ services:
     restart: unless-stopped
 
   # ORFS job workers — dedicated queue for long-running ORFS jobs
+  # Consumes both high_priority (instructor/admin) and orfs_jobs (student) queues.
+  # Queue list order ensures high_priority tasks are polled first.
   orfs-worker:
     build:
       context: ./worker
     command: >
       celery -A celery_app worker
-      -Q orfs_jobs
+      -Q high_priority,orfs_jobs
       -c ${ORFS_WORKER_CONCURRENCY:-4}
       --loglevel=info
     depends_on:

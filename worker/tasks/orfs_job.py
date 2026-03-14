@@ -9,9 +9,15 @@ ORFS flow stage boundary, making stage progress visible in the UI without
 parsing the raw log.
 
 Container lifecycle:
+  - Warm pool container claimed if available; cold start otherwise
   - Container is ALWAYS stopped and removed in the finally block
   - Workspace directory is ALWAYS removed in the finally block
   - These invariants hold even if the task is revoked via Celery control.revoke()
+
+Auto-retry policy:
+  - Retries ONCE after 30s on transient Docker API errors (DockerException on start)
+  - Does NOT retry on non-zero exit code (design error — user must fix Verilog/SDC)
+  - Does NOT retry on timeout (JOB_TIMEOUT_SECONDS exceeded)
 """
 import os
 import re
@@ -49,7 +55,7 @@ LOG_BUFFER_TTL = 86400
 
 
 # ---------------------------------------------------------------------------
-# Celery task
+# Main ORFS job task (student queue / normal priority)
 # ---------------------------------------------------------------------------
 
 @app.task(
@@ -57,6 +63,8 @@ LOG_BUFFER_TTL = 86400
     queue="orfs_jobs",
     bind=True,
     acks_late=True,
+    max_retries=1,
+    default_retry_delay=30,
 )
 def run_orfs_job(self, run_id: str) -> None:
     """Execute an ORFS flow job in an isolated Docker container.
@@ -69,8 +77,14 @@ def run_orfs_job(self, run_id: str) -> None:
         - Workspace directory is always cleaned up in finally block
         - Log lines published to Redis logs:{run_id} pubsub channel
         - Last 5000 log lines kept in Redis list logbuf:{run_id}
+
+    Retry policy:
+        - Retries once after 30s on DockerException (transient tool crash / OOM)
+        - Does NOT retry on non-zero exit code (design error — user must fix code)
+        - Does NOT retry on timeout
     """
-    from config import get_settings
+    import docker.errors as docker_errors
+    from app.core.config import get_settings
 
     settings = get_settings()
 
@@ -119,6 +133,15 @@ def run_orfs_job(self, run_id: str) -> None:
             )
             db.commit()
 
+    # Attempt to claim a pre-started container from the warm pool
+    try:
+        from container.warm_pool import get_warm_pool
+        pool = get_warm_pool()
+        warm_container_id = pool.claim() if pool else None
+    except Exception:
+        pool = None
+        warm_container_id = None
+
     try:
         os.makedirs(workspace, exist_ok=True)
         update_status("starting")
@@ -136,18 +159,37 @@ def run_orfs_job(self, run_id: str) -> None:
         if artifact_path:
             _download_workspace(settings, artifact_path, workspace)
 
-        # Spawn the ORFS container
-        container = manager.run_container(
-            run_id=run_id,
-            image=settings.ORFS_IMAGE,
-            workspace_path=workspace,
-            pdk_root=settings.PDK_ROOT,
-            settings={
-                "JOB_CPU_CORES": settings.JOB_CPU_CORES,
-                "JOB_RAM_GB": settings.JOB_RAM_GB,
-                "JOB_DISK_GB": settings.JOB_DISK_GB,
-            },
-        )
+        if warm_container_id:
+            # Warm container available: use it instead of cold-starting
+            try:
+                container = manager._client.containers.get(warm_container_id)
+                publish_line(f"[chipatelier] Using warm container {warm_container_id[:12]}")
+            except docker_errors.NotFound:
+                # Stale warm container — fall through to cold start
+                warm_container_id = None
+                container = None
+
+        if container is None:
+            # Cold start path (warm pool miss, stale container, or pool empty)
+            try:
+                container = manager.run_container(
+                    run_id=run_id,
+                    image=settings.ORFS_IMAGE,
+                    workspace_path=workspace,
+                    pdk_root=settings.PDK_ROOT,
+                    settings={
+                        "JOB_CPU_CORES": settings.JOB_CPU_CORES,
+                        "JOB_RAM_GB": settings.JOB_RAM_GB,
+                        "JOB_DISK_GB": settings.JOB_DISK_GB,
+                    },
+                )
+            except docker_errors.DockerException as exc:
+                # Transient Docker API error — retry once after 30s
+                # Design errors (bad Verilog) do NOT trigger this: container runs then exits non-zero
+                update_status("queued")  # back to queued for retry
+                publish_line(f"[chipatelier] Docker error on start — retrying in 30s: {exc}")
+                raise self.retry(exc=exc, countdown=30)
+
         update_status("running")
 
         # Stream stdout/stderr line by line
@@ -172,13 +214,17 @@ def run_orfs_job(self, run_id: str) -> None:
         update_status(final_status)
         publish_line(f"[chipatelier] Job {run_id} finished with status: {final_status}")
 
+        # Do NOT retry design errors — user must fix their Verilog/SDC
         if exit_code == 0:
-            # Dispatch background PNG generation task (plan 01-05 implements the body)
             try:
                 from tasks.tile_generator import generate_png
                 generate_png.delay(run_id, workspace)
             except Exception:
                 pass  # tile generation is a background enhancement, not critical
+
+    except self.MaxRetriesExceededError:
+        update_status("failed")
+        publish_line(f"[chipatelier] Job {run_id} failed after retry — marking failed")
 
     except Exception as exc:
         update_status("failed")
@@ -189,7 +235,35 @@ def run_orfs_job(self, run_id: str) -> None:
         # INVARIANT: container and workspace are ALWAYS cleaned up
         if container is not None:
             manager.stop_and_remove(container)
+        # Replenish warm pool slot consumed by this job
+        if pool is not None:
+            try:
+                pool.replenish()
+            except Exception:
+                pass
         shutil.rmtree(workspace, ignore_errors=True)
+
+
+# ---------------------------------------------------------------------------
+# High-priority variant (instructor/admin jobs)
+# ---------------------------------------------------------------------------
+
+@app.task(
+    name="tasks.orfs_job.run_orfs_job_high",
+    queue="high_priority",
+    bind=True,
+    acks_late=True,
+    max_retries=1,
+    default_retry_delay=30,
+)
+def run_orfs_job_high(self, run_id: str) -> None:
+    """High-priority variant for instructor/admin jobs.
+
+    Identical logic to run_orfs_job; routed to high_priority queue so it
+    bypasses the student fair queue and is processed before student jobs.
+    """
+    # Delegate to the main task implementation (same logic, different queue binding)
+    return run_orfs_job(self, run_id)
 
 
 # ---------------------------------------------------------------------------
