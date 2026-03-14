@@ -87,6 +87,6 @@ Phases execute in numeric order: 1 → 2 → 3
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Core Flow | 7/8 | Gap closure in progress | 2026-03-14 |
+| 1. Core Flow | 8/8 | Complete   | 2026-03-14 |
 | 2. Learning Layer | 0/6 | Not started | - |
 | 3. AI Assistance | 0/3 | Not started | - |

@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Completed 01-07-PLAN.md — all Phase 1 plans done
-last_updated: "2026-03-14T00:21:18.453Z"
+stopped_at: Completed 01-08-PLAN.md — all Phase 1 gap closure complete
+last_updated: "2026-03-14T09:07:22.943Z"
 last_activity: 2026-03-12 — Roadmap created; requirements mapped; ready to plan Phase 1
 progress:
   total_phases: 3
   completed_phases: 1
-  total_plans: 7
-  completed_plans: 7
+  total_plans: 8
+  completed_plans: 8
   percent: 0
 ---
 
@@ -57,6 +57,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 01-core-flow P05 | 9 | 2 tasks | 18 files |
 | Phase 01-core-flow P06 | 9 | 1 tasks | 11 files |
 | Phase 01-core-flow P07 | 45 | 3 tasks | 21 files |
+| Phase 01-core-flow P08 | 13 | 3 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -92,6 +93,10 @@ Recent decisions affecting current work:
 - [Phase 01-core-flow]: Warm pool target = WARM_POOL_SIZE/2; claim returns None gracefully on miss/stale; replenish called in finally block and on 30s beat
 - [Phase 01-core-flow]: Auto-retry: max_retries=1 on DockerException only; non-zero exit code (design error) NOT retried — user must fix Verilog/SDC
 - [Phase 01-core-flow]: Notes privacy: notes excluded from RunSummary (list); only visible in RunStatusResponse to run owner; PATCH /runs/{id}/notes is owner-only (403 for others)
+- [Phase 01-core-flow]: Inline redis zadd/incr logic in jobs.py student path — eliminates cross-container worker package import
+- [Phase 01-core-flow]: worker.celery_app uses try/except config_from_object(worker.celeryconfig) with fallback to celeryconfig for production CWD
+- [Phase 01-core-flow]: VNC start_session.sh uses ORFS open.tcl with ODB_FILE + DESIGN_CONFIG; VNC_ODB_PATH replaces VNC_DEF_PATH
+- [Phase 01-core-flow]: parse_ppa_metrics returns (ppa, stage_metrics) tuple; iterates per-stage ORFS JSON files; stage_metrics written to DB
 
 ### Pending Todos
 
@@ -105,6 +110,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-14T00:21:18.449Z
-Stopped at: Completed 01-07-PLAN.md — all Phase 1 plans done
+Last session: 2026-03-14T09:07:22.939Z
+Stopped at: Completed 01-08-PLAN.md — all Phase 1 gap closure complete
 Resume file: None
