@@ -94,3 +94,8 @@ app.include_router(artifacts_router, prefix="/api/v1")
 from app.api.routes.vnc import router as vnc_router
 
 app.include_router(vnc_router, prefix="/api/v1")
+
+# --- AI routes (plan 01-07) — stub returns 501 until Phase 3 wires Ollama ---
+from app.api.routes.ai import router as ai_router
+
+app.include_router(ai_router, prefix="/api/v1")

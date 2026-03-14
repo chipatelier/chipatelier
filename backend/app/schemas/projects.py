@@ -23,15 +23,21 @@ class ProjectResponse(BaseModel):
 
 
 class RunSummary(BaseModel):
+    """Run summary for list endpoints.
+
+    notes intentionally excluded — private, only in RunStatusResponse (GET /jobs/{id}).
+    """
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
     status: str
     target_stage: str | None
     stage_completed: str | None
+    queue_priority: str
     created_at: datetime
     completed_at: datetime | None
     ppa: dict[str, Any] | None
+    # notes intentionally excluded — private
 
 
 class UploadResponse(BaseModel):
