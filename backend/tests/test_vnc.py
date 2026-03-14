@@ -336,12 +336,16 @@ async def test_vnc_cancel(test_client, async_session, mock_docker):
 
 
 # ---------------------------------------------------------------------------
-# Test: VNC container spawned with DEF path env var
+# Test: VNC container spawned with ODB path env var (ORFS open.tcl approach)
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
 async def test_vnc_container_def_env_var(test_client, async_session, mock_docker):
-    """When VNC session starts, container is spawned with VNC_DEF_PATH env var."""
+    """When VNC session starts, container is spawned with VNC_ODB_PATH env var (not VNC_DEF_PATH).
+
+    The start_session.sh uses ORFS open.tcl which requires ODB_FILE (set from VNC_ODB_PATH).
+    Reference: CLAUDE.md "VNC Container Setup (Corrected)" section.
+    """
     from app.models.user import User
     from app.models.project import Project
     from app.models.run import Run
@@ -391,11 +395,12 @@ async def test_vnc_container_def_env_var(test_client, async_session, mock_docker
             port=6085,
         )
 
-        # Verify container was spawned with VNC_DEF_PATH env var
+        # Verify container was spawned with VNC_ODB_PATH env var (not VNC_DEF_PATH)
         call_kwargs = mock_docker_fn.return_value.containers.run.call_args
         env = call_kwargs.kwargs.get("environment", {})
         if not env:
             # Try positional
             env = call_kwargs[1].get("environment", {})
-        assert "VNC_DEF_PATH" in env
-        assert "6_final.def" in env["VNC_DEF_PATH"]
+        assert "VNC_ODB_PATH" in env, f"Expected VNC_ODB_PATH in env, got: {list(env.keys())}"
+        assert "VNC_DEF_PATH" not in env, "VNC_DEF_PATH must not be in env (use VNC_ODB_PATH for open.tcl)"
+        assert ".odb" in env["VNC_ODB_PATH"], f"Expected ODB file in VNC_ODB_PATH, got: {env['VNC_ODB_PATH']}"

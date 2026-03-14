@@ -180,11 +180,13 @@ def _parse_and_update(
         platform = "sky130hd"
         design = "unknown"
 
-    ppa = parse_ppa_metrics(workspace, platform, design)
-    _update_run_record(run_id, settings, artifact_path=f"runs/{run_id}/", ppa=ppa)
+    ppa, stage_metrics = parse_ppa_metrics(workspace, platform, design)
+    _update_run_record(run_id, settings, artifact_path=f"runs/{run_id}/", ppa=ppa, stage_metrics=stage_metrics)
 
 
-def _update_run_record(run_id: str, settings, artifact_path: str, ppa: dict) -> None:
+def _update_run_record(
+    run_id: str, settings, artifact_path: str, ppa: dict, stage_metrics: dict | None = None
+) -> None:
     """Synchronously update run record in DB from background task context."""
     import json
     from sqlalchemy import create_engine, text
@@ -194,14 +196,16 @@ def _update_run_record(run_id: str, settings, artifact_path: str, ppa: dict) -> 
     sync_url = settings.DATABASE_URL.replace(
         "postgresql+asyncpg://", "postgresql://"
     )
+    sm = stage_metrics if stage_metrics is not None else {}
     try:
         engine = create_engine(sync_url)
         with Session(engine) as db_session:
             db_session.execute(
                 text(
-                    "UPDATE runs SET artifact_path = :ap, ppa = CAST(:ppa AS jsonb) WHERE id = CAST(:id AS uuid)"
+                    "UPDATE runs SET artifact_path = :ap, ppa = CAST(:ppa AS jsonb),"
+                    " stage_metrics = CAST(:sm AS jsonb) WHERE id = CAST(:id AS uuid)"
                 ),
-                {"ap": artifact_path, "ppa": json.dumps(ppa), "id": run_id},
+                {"ap": artifact_path, "ppa": json.dumps(ppa), "sm": json.dumps(sm), "id": run_id},
             )
             db_session.commit()
         engine.dispose()

@@ -1,4 +1,4 @@
-"""VNC session lifecycle task — spawns noVNC containers with DEF pre-loaded."""
+"""VNC session lifecycle task — spawns noVNC containers with ODB pre-loaded via ORFS open.tcl."""
 import logging
 
 try:
@@ -8,27 +8,51 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+# Stage-to-ODB mapping for VNC pre-loading.
+# Matches ORFS results directory naming convention.
+# Reference: CLAUDE.md "VNC Container Setup (Corrected)" section.
+STAGE_ODB = {
+    "floorplan": "2_floorplan.odb",
+    "place":     "3_place.odb",
+    "cts":       "4_cts.odb",
+    "route":     "5_route.odb",
+    "finish":    "6_final.odb",
+}
+# Default ODB file when stage is unknown or not in STAGE_ODB
+_DEFAULT_ODB = "6_final.odb"
 
-def start_vnc_container(session_id: str, artifact_path: str, port: int) -> str:
+
+def start_vnc_container(
+    session_id: str,
+    artifact_path: str,
+    port: int,
+    stage: str | None = None,
+) -> str:
     """Spawn a noVNC container for interactive OpenROAD viewing.
 
     The container uses chipatelier/vnc-viewer image with:
       - Xvfb + x11vnc + websockify managed by supervisord
-      - OpenROAD GUI pre-loaded with the student's DEF file
+      - OpenROAD GUI pre-loaded with the student's ODB file via ORFS open.tcl
+
+    CRITICAL: Uses ODB_FILE + DESIGN_CONFIG + open.tcl (not read_lef/read_def).
+    open.tcl calls load_design which correctly loads full LEF/LIB context.
+    Reference: CLAUDE.md "VNC Container Setup (Corrected)" section.
 
     Args:
         session_id: VncSession.id (string UUID) — used to name the container.
-        artifact_path: MinIO artifact prefix, e.g. "runs/{run_id}/". The DEF
-            file is expected at {artifact_path}6_final.def.
+        artifact_path: MinIO artifact prefix, e.g. "runs/{run_id}/".
         port: Host port to bind websockify on (6080–6099 range).
+        stage: ORFS stage name (e.g. "route", "cts") — determines which ODB to load.
+            Defaults to "6_final.odb" (finish stage).
 
     Returns:
         container_id: Docker container ID string.
     """
     import docker  # noqa: PLC0415
 
-    def_path = f"/artifacts/{artifact_path}6_final.def"
-    lef_path = f"/artifacts/{artifact_path}merged.lef"
+    odb_filename = STAGE_ODB.get(stage or "", _DEFAULT_ODB)
+    odb_path = f"/artifacts/{artifact_path}{odb_filename}"
+    design_config = "/workspace/config.mk"
 
     client = docker.from_env()
     container = client.containers.run(
@@ -37,8 +61,8 @@ def start_vnc_container(session_id: str, artifact_path: str, port: int) -> str:
         detach=True,
         ports={6080: port},  # websockify port → host port
         environment={
-            "VNC_DEF_PATH": def_path,
-            "VNC_LEF_PATH": lef_path,
+            "VNC_ODB_PATH": odb_path,       # resolved from STAGE_ODB map
+            "DESIGN_CONFIG": design_config, # /workspace/config.mk
             "DISPLAY": ":99",
         },
         # VNC containers need display access — NOT read-only
