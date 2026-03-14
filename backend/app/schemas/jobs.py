@@ -16,15 +16,40 @@ class SubmitRequest(BaseModel):
 class SubmitResponse(BaseModel):
     run_id: uuid.UUID
     status: str = "queued"
+    queue_priority: str = "normal"
+
+
+class RunSummary(BaseModel):
+    """Run summary for list endpoints — notes intentionally excluded (private)."""
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    status: str
+    target_stage: str | None
+    stage_completed: str | None
+    queue_priority: str
+    created_at: datetime
+    completed_at: datetime | None
+    ppa: dict[str, Any] | None
+    # notes intentionally excluded — private, only in RunStatusResponse
 
 
 class RunStatusResponse(BaseModel):
+    """Full run detail — includes notes (visible to run owner only)."""
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
     status: str
     stage_completed: str | None
     target_stage: str | None
+    queue_priority: str
+    notes: str | None   # included here — owner can see their own run notes
     created_at: datetime
     completed_at: datetime | None
     ppa: dict[str, Any] | None
+
+
+class RunNotesUpdate(BaseModel):
+    """Request body for PATCH /runs/{id}/notes."""
+    notes: str | None = None   # None clears the notes
+    model_config = ConfigDict(str_max_length=2000)
