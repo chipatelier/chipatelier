@@ -316,44 +316,134 @@ worker every 30 seconds. If heartbeat stops for > 2 minutes, job is requeued.
 
 ---
 
+## ORFS Flow Invocation (Corrected)
+
+ORFS is a **Make-based framework**. The worker wraps `make`, not a Python/Tcl API directly.
+
+```bash
+# Primary invocation inside the ORFS container:
+cd /workspace
+make --file=/OpenROAD-flow-scripts/flow/Makefile \
+     DESIGN_CONFIG=/workspace/config.mk \
+     [TARGET]
+
+# Stage targets (cumulative — runs up to and including this stage):
+make synth        # synthesis only      → results/.../1_synth.odb
+make floorplan    # up to floorplan     → results/.../2_floorplan.odb
+make place        # up to placement     → results/.../3_place.odb
+make cts          # up to CTS           → results/.../4_cts.odb
+make route        # up to routing       → results/.../5_route.odb
+make finish       # full flow to GDS    → results/.../6_final.gds
+
+# Clean individual stages (enables re-run from that stage):
+make clean_synth | clean_floorplan | clean_place | clean_cts | clean_route | clean_finish
+# Pattern for re-run from a stage:
+make clean_route && make route
+
+# GUI targets — open OpenROAD Qt GUI with stage ODB pre-loaded:
+make gui_floorplan | gui_place | gui_cts | gui_route | gui_final
+
+# Locking parameters via command-line override (ignores config.mk value):
+make CLOCK_PERIOD=10 PLATFORM=sky130hd DESIGN_CONFIG=...
+```
+
+**Results directory** (relative to Make working directory):
+```
+results/{PLATFORM}/{DESIGN}/base/
+  1_synth.v              # gate-level netlist (Yosys output)
+  1_synth.sdc            # post-synthesis timing constraints
+  1_synth.odb            # OpenDB binary — synthesis→floorplan handoff
+  2_floorplan.odb        # OpenDB after floorplan
+  2_floorplan.sdc
+  3_place.odb            # OpenDB after placement
+  4_cts.odb              # OpenDB after CTS
+  5_route.odb            # OpenDB after routing
+  6_final.gds            # final GDSII (KLayout generated)
+  6_final.def            # final DEF (only DEF written at finish)
+  6_final.v              # final netlist with physical cells
+  6_final.sdc
+
+logs/{PLATFORM}/{DESIGN}/base/
+  1_1_yosys.log
+  2_1_floorplan.log
+  2_1_floorplan.json     # per-stage metrics JSON ← parse this
+  3_1_place.json
+  4_cts.json
+  5_1_grt.json           # global route metrics
+  6_report.json          # final signoff metrics
+
+reports/{PLATFORM}/{DESIGN}/base/
+  final_all.webp         # ← ORFS auto-generates these — no KLayout work needed
+  final_routing.webp
+  final_placement.webp
+  final_clocks.webp
+  final_ir_drop.webp
+  final_congestion.webp  # congestion heatmap — free, use directly as stage preview
+```
+
+**CRITICAL: The primary artifact format is `.odb` not `.def`.**
+ODB is OpenROAD's binary database. DEF is only written at finish.
+All intermediate stage inspection loads `.odb` files.
+
 ## ORFS Container Lifecycle
 
-```python
-# Worker spawns container per job:
+```bash
+# Docker run flags for ORFS job container:
 docker run \
   --name orfs_job_{run_id} \
-  --network none \                    # CRITICAL: no network access
+  --network none \                     # CRITICAL: no internet access
   --cpus {JOB_CPU_CORES} \
   --memory {JOB_RAM_GB}g \
-  --memory-swap {JOB_RAM_GB}g \       # No swap
-  --read-only --tmpfs /tmp \
+  --memory-swap {JOB_RAM_GB}g \        # No swap
   --user orfs:orfs \
   --cap-drop ALL \
   --security-opt no-new-privileges \
-  -v {workspace}:/workspace:rw \
-  -v {pdk_root}:/pdks:ro \
+  -v {workspace}:/workspace:rw \       # student workspace
+  -v {pdk_root}:/pdks:ro \             # PDKs read-only
   --storage-opt size={JOB_DISK_GB}G \
-  openroad/orfs:{version}
+  openroad/orfs:{version} \
+  bash -c "cd /workspace && make --file=/OpenROAD-flow-scripts/flow/Makefile \
+           DESIGN_CONFIG=/workspace/config.mk {target}"
 ```
 
 Always cleaned up in finally block — no orphaned containers.
 
 ---
 
-## VNC Container Setup
+## VNC Container Setup (Corrected)
+
+The GUI loads `.odb` files via ORFS's own `open.tcl` script — NOT `read_def`.
+The Make `gui_*` targets show the exact mechanism:
 
 ```bash
-# Inside vnc-container:
+# Inside vnc-container — replicate what `make gui_cts` does:
 Xvfb :99 -screen 0 1920x1080x24 &
 export DISPLAY=:99
 x11vnc -display :99 -nopw -listen localhost -xkb &
 websockify --web /usr/share/novnc/ 6080 localhost:5900 &
 
-# Pre-load student's DEF/GDS into OpenROAD:
-openroad -gui -no_splash << EOF
-read_lef $LEF_FILE
-read_def $DEF_FILE
-EOF
+# Set env vars ORFS open.tcl expects, then launch GUI:
+export DESIGN_CONFIG=/workspace/config.mk
+export ODB_FILE=/workspace/results/sky130hd/{design}/base/{stage}.odb
+export OPENROAD_EXE=/OpenROAD-flow-scripts/tools/install/OpenROAD/bin/openroad
+
+$OPENROAD_EXE -gui /OpenROAD-flow-scripts/flow/scripts/open.tcl
+
+# open.tcl sources load.tcl and calls:
+#   source $::env(SCRIPTS_DIR)/load.tcl
+#   load_design $ODB_FILE $SDC_FILE
+# This correctly loads the full design context including LEF/LIB.
+```
+
+Stage-to-ODB mapping for VNC pre-loading:
+```python
+STAGE_ODB = {
+    "floorplan": "2_floorplan.odb",
+    "place":     "3_place.odb",
+    "cts":       "4_cts.odb",
+    "route":     "5_route.odb",
+    "finish":    "6_final.odb",   # or load 6_final.gds via KLayout
+}
 ```
 
 Nginx proxies `/vnc/{token}` → container port 6080. Token validated before proxying.
@@ -376,15 +466,58 @@ FastAPI WebSocket endpoint:
 
 ---
 
+## Real ORFS Metrics Schema (Corrected)
+
+ORFS writes per-stage JSON files in `logs/{platform}/{design}/base/`.
+The naming convention is `{stage}__{category}__{metric}` — NOT our original schema.
+
+```json
+// Example: logs/sky130hd/gcd/base/2_1_floorplan.json
+{
+  "floorplan__timing__setup__tns": 0,
+  "floorplan__timing__setup__ws": 0.0148687,
+  "floorplan__timing__hold__tns": 0,
+  "floorplan__timing__hold__ws": 0.0997134,
+  "floorplan__power__internal__total": 0.00120063,
+  "floorplan__power__switching__total": 0.000809229,
+  "floorplan__power__leakage__total": 1.46085e-05,
+  "floorplan__power__total": 0.00202447,
+  "floorplan__design__die__area": 1262.03,
+  "floorplan__design__core__area": 1070.65,
+  "floorplan__design__instance__count": 499,
+  "floorplan__design__instance__utilization": 0.577391,
+  "floorplan__design__io": 54
+}
+```
+
+The metrics parser must:
+1. Collect all per-stage JSON files after job completion
+2. Merge into a unified dict keyed by stage prefix
+3. Store merged dict as JSONB in PostgreSQL `runs.metrics` column
+4. Map to friendly names for UI display:
+
+```python
+METRIC_MAP = {
+    "worst_negative_slack": lambda m: m.get("route__timing__setup__ws",
+                                   m.get("finish__timing__setup__ws", None)),
+    "total_negative_slack": lambda m: m.get("route__timing__setup__tns", None),
+    "core_utilization":     lambda m: m.get("floorplan__design__instance__utilization", None),
+    "drc_violations":       lambda m: m.get("finish__design__violations", 0),
+    "total_power":          lambda m: m.get("finish__power__total", None),
+    "die_area":             lambda m: m.get("floorplan__design__die__area", None),
+}
+```
+
 ## Checkpoint Evaluation
 
-Assignment checkpoint rules are stored as JSONB in the `assignments` table:
+Assignment checkpoint rules stored as JSONB in the `assignments` table.
+Evaluated against the friendly-name mapped metrics above:
 
 ```json
 {
   "hard": [
-    {"metric": "drc_violations", "op": "eq", "value": 0},
-    {"metric": "flow_complete", "op": "eq", "value": true}
+    {"metric": "drc_violations",  "op": "eq",  "value": 0},
+    {"metric": "flow_complete",   "op": "eq",  "value": true}
   ],
   "scored": [
     {"metric": "worst_negative_slack", "op": "gte", "value": -0.1,
@@ -449,6 +582,34 @@ VNC session: POST /api/v1/vnc/start/{runId}
 ```
 
 ---
+
+## config.mk — Required Variables and Priority
+
+Minimum required design config.mk (confirmed from ORFS docs):
+```makefile
+export PLATFORM      = sky130hd
+export DESIGN_NAME   = gcd
+export VERILOG_FILES = $(sort $(wildcard ./designs/src/gcd/*.v))
+export SDC_FILE      = ./designs/sky130hd/gcd/constraint.sdc
+export CORE_UTILIZATION  = 40
+export PLACE_DENSITY     = 0.60
+export TNS_END_PERCENT   = 100
+```
+
+Variable priority (highest wins):
+1. Make command line: `make CLOCK_PERIOD=10`  ← use this to LOCK instructor params
+2. Shell environment variables
+3. settings.mk (local overrides, not in git)
+4. Design config.mk (student editable)
+5. Platform config.mk (sky130hd defaults — do not expose to students)
+6. variables.yaml (~1000 variables, internal defaults)
+
+ORFS has ~1000 configurable variables. ChipAtelier must curate a safe subset:
+- Exposed to students: CORE_UTILIZATION, PLACE_DENSITY, TNS_END_PERCENT,
+  CLOCK_PERIOD, CORE_ASPECT_RATIO, CORE_MARGIN, SETUP_SLACK_MARGIN
+- Locked via Make command line (not editable even if in config.mk):
+  PLATFORM, PDK_ROOT (instructor sets these at job invocation time)
+- Hidden entirely: all platform variables (TECH_LEF, SC_LEF, LIB_FILES etc.)
 
 ## Assignment Library Format
 
@@ -557,12 +718,46 @@ Phase 3 — AI + polish (weeks 13-18):
 
 ---
 
+## ORFS Workspace Directory Structure
+
+When Make runs, results are written relative to the Make working directory:
+```
+/workspace/                          ← Make working directory (student project root)
+  config.mk                          ← student's design config
+  designs/src/{design}/
+    design.v                         ← Verilog source
+    constraint.sdc                   ← SDC timing constraints
+  results/sky130hd/{design}/base/    ← all ODB/GDS outputs
+  logs/sky130hd/{design}/base/       ← all logs + per-stage JSON metrics
+  reports/sky130hd/{design}/base/    ← auto-generated WebP images
+  objects/sky130hd/{design}/base/    ← KLayout layer file etc.
+```
+
+config.mk path references must resolve relative to /workspace.
+PLATFORM is set in config.mk — results subdir is derived from it automatically.
+
+## CTS Stage Details (Stage 4)
+
+CTS runs four sub-steps inside a single `make cts` invocation:
+1. **TritonCTS buffer insertion** — builds balanced H-tree clock network
+2. **repair_timing** — fixes setup/hold violations with REAL clock delays
+   (placement timing was based on ideal clock — CTS reveals true violations)
+3. **Detailed placement re-run** — legalises newly inserted buffer cells
+4. **Filler cell insertion** — fills empty standard cell row gaps for DRC
+
+Students often see WNS worsen after CTS because the ideal clock assumption
+is removed. The AI hint system must specifically detect and explain this pattern.
+Output: `4_cts.odb` — load via `make gui_cts` or `load_design 4_cts.odb 4_cts.sdc`
+
 ## Known Constraints
 
 - ORFS routing jobs are CPU and RAM heavy — enforce cgroup limits strictly
-- KLayout tile generation is slow (2-5 min) — always run as background task,
-  but ALWAYS keep the fast-path single PNG overview (seconds) as permanent
-  preview while tiles build. Do not remove this after Phase 1.
+- KLayout tile generation is slow (2-5 min) — always run as background task.
+  HOWEVER: ORFS already auto-generates WebP overview images at the finish stage
+  (final_all.webp, final_routing.webp, final_placement.webp, final_congestion.webp,
+  final_clocks.webp, final_ir_drop.webp) in reports/{platform}/{design}/base/.
+  Serve these directly as the fast-path preview — no KLayout work needed for overview.
+  Only build the full tile pyramid for the interactive zoom viewer.
 - noVNC is bandwidth-heavy — recommend on-campus deployment for VNC viewer
 - PostgreSQL metrics JSONB: use GIN index on frequently queried keys
   (`CLOCK_PERIOD`, `CORE_UTILIZATION`, `worst_negative_slack`). Config
