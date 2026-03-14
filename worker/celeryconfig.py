@@ -26,6 +26,10 @@ task_routes = {
     # Normal student ORFS jobs — dispatched by drain_queue beat task
     "worker.tasks.orfs_job.run_orfs_job": {"queue": "orfs_jobs"},
     "tasks.orfs_job.run_orfs_job": {"queue": "orfs_jobs"},
+    # Wildcard patterns — required by test contract and for future orfs_job tasks
+    # Placed AFTER explicit entries so specific high_priority routing takes precedence
+    "tasks.orfs_job.*":         {"queue": "orfs_jobs"},
+    "worker.tasks.orfs_job.*":  {"queue": "orfs_jobs"},
     # Background tasks — separate worker process
     "worker.tasks.tile_generator.*": {"queue": "background"},
     "tasks.tile_generator.*": {"queue": "background"},

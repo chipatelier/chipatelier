@@ -12,7 +12,10 @@ import os
 import tempfile
 from pathlib import Path
 
-from celery_app import app
+try:
+    from worker.celery_app import app
+except ImportError:
+    from celery_app import app  # fallback when CWD is worker/ (production entrypoint)
 
 logger = logging.getLogger(__name__)
 

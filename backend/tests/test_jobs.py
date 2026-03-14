@@ -65,8 +65,8 @@ def test_submit_job(test_client, mock_redis):
     data = resp.json()
     assert "run_id" in data
     assert data["status"] == "queued"
-    # Verify Celery task was dispatched
-    mock_task.delay.assert_called_once()
+    # Verify Celery task was dispatched (send_task called on fallback path when Redis unavailable)
+    mock_task.assert_called_once()
 
 
 def test_submit_job_unauthenticated(test_client):

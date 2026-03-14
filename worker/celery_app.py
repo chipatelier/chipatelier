@@ -3,7 +3,10 @@ from celery import Celery
 from celery.signals import worker_ready, worker_shutdown
 
 app = Celery("chipatelier")
-app.config_from_object("celeryconfig")
+try:
+    app.config_from_object("worker.celeryconfig")
+except Exception:
+    app.config_from_object("celeryconfig")  # fallback when CWD is worker/ (production entrypoint)
 app.autodiscover_tasks(["tasks"])
 
 

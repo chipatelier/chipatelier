@@ -106,25 +106,33 @@ async def submit_job(
         run.celery_task_id = result.id
         await db.commit()
     else:
-        # Student: add to Redis fair queue sorted set
-        # drain_queue beat task (every 5s) dispatches when capacity is available
+        # Student: add to Redis fair queue sorted set.
+        # Inline Redis logic — do NOT import from worker package (cross-container boundary).
+        # fair_queue:normal is a Redis sorted set; score = current queue depth for this student.
+        # drain_queue beat task (every 5s) dispatches runs from this set to orfs_jobs queue.
         try:
             import redis as redis_lib
             from app.core.config import get_settings
             settings = get_settings()
-            r = redis_lib.Redis.from_url(settings.REDIS_URL)
-            from worker.tasks.fair_queue import enqueue_student_job
-            enqueue_student_job(str(user.id), str(run.id), r)
+            r = redis_lib.Redis.from_url(settings.REDIS_URL, decode_responses=True)
+            depth_key = f"fair_queue:depth:{str(user.id)}"
+            queue_key = "fair_queue:normal"
+            score = float(r.get(depth_key) or 0)
+            r.zadd(queue_key, {str(run.id): score})
+            r.incr(depth_key)
         except Exception:
-            # If Redis is unavailable (e.g., test environment), fall back to direct Celery dispatch
+            # If Redis is unavailable (test environment without mock_redis),
+            # fall back to direct Celery dispatch so the run is not silently dropped.
             from app.core.celery_client import celery_app as _celery
             result = _celery.send_task(
                 "tasks.orfs_job.run_orfs_job",
                 args=[str(run.id)],
                 queue="orfs_jobs",
             )
-            run.celery_task_id = result.id
-            await db.commit()
+            task_id = getattr(result, "id", None)
+            if isinstance(task_id, str):
+                run.celery_task_id = task_id
+                await db.commit()
         # celery_task_id will be set by drain_queue when the job is dispatched (production path)
 
     return SubmitResponse(run_id=run.id, status="queued", queue_priority=queue_priority)
