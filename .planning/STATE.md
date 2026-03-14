@@ -5,7 +5,7 @@ milestone_name: milestone
 status: planning
 stopped_at: Completed quick/1-add-missing-root-level-documentation/1-PLAN.md
 last_updated: "2026-03-14T21:22:33.320Z"
-last_activity: 2026-03-12 — Roadmap created; requirements mapped; ready to plan Phase 1
+last_activity: 2026-03-14 — Completed quick task 1: Add Missing — Root-level Documentation
 progress:
   total_phases: 3
   completed_phases: 1
@@ -107,6 +107,12 @@ None yet.
 - [Phase 1]: CPU budget on DL380 Gen9 is tight (28-36 cores) — profile realistic mixed workload before Phase 2 ships
 - [Phase 1]: Orphaned container watchdog must be built alongside job pipeline, not after
 - [Phase 2]: PostgreSQL JSONB leaderboard ordering requires functional B-tree index with ::numeric cast, not GIN
+
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 1 | Add Missing — Root-level Documentation | 2026-03-14 | 7f22e3f | [1-add-missing-root-level-documentation](./quick/1-add-missing-root-level-documentation/) |
 
 ## Session Continuity
 
