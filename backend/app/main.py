@@ -136,3 +136,10 @@ app.include_router(vnc_router, prefix="/api/v1")
 from app.api.routes.ai import router as ai_router
 
 app.include_router(ai_router, prefix="/api/v1")
+
+# --- Course and assignment routes (plan 02-02) ---
+from app.api.routes.courses import router as courses_router
+from app.api.routes.assignments import router as assignments_router
+
+app.include_router(courses_router, prefix="/api/v1", tags=["courses"])
+app.include_router(assignments_router, prefix="/api/v1", tags=["assignments"])
