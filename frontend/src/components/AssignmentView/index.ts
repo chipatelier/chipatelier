@@ -1,0 +1,1 @@
+export { AssignmentView } from "./AssignmentView";
