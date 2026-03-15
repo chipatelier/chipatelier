@@ -89,10 +89,6 @@ export async function uploadFiles(
   const { data } = await apiClient.post<UploadResponse>(
     `/projects/${projectId}/upload`,
     formData,
-    // Do NOT set Content-Type manually — Axios auto-sets multipart/form-data
-    // with the correct boundary when it detects a FormData body. Explicitly
-    // setting it without a boundary causes the server to return 422.
-    { headers: { "Content-Type": undefined } }
   );
   return data;
 }
