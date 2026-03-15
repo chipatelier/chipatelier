@@ -8,16 +8,40 @@
  *
  * The PNG fast-path is PERMANENT per CLAUDE.md — this component must always
  * render the PNG preview. Phase 2's tiled viewer is additive, not a replacement.
+ *
+ * Phase 2 extensions (plan 02-05):
+ *   - Click-to-inspect: when runId + layoutBbox are provided, clicking the PNG
+ *     sends pixel → micron coordinates to the backend query endpoint and shows
+ *     the InspectSidebar with matching cell instance details.
+ *   - Y-axis inversion: PNG (0,0) is top-left; EDA (0,0) is bottom-left.
+ *     Formula: yUm = (1 - clickY/height) * (bbox.ymax - bbox.ymin) + bbox.ymin
  */
 import React, { useState } from "react";
 import type { ArtifactURLs } from "../../api/artifacts";
 import { startVncSession } from "../../api/vnc";
+import { clickToInspect } from "../../api/query";
+import type { InspectElement } from "../../api/query";
+import { InspectSidebar } from "./InspectSidebar";
+
+/** Bounding box of the layout die in microns (EDA coordinate space). */
+export interface LayoutBbox {
+  xmin: number;
+  ymin: number;
+  xmax: number;
+  ymax: number;
+}
 
 interface Props {
   runId: string;
   artifacts: ArtifactURLs | null;
   /** Called when user clicks "Open in VNC viewer" — plan 01-06 implements the session start */
   onOpenVnc?: (runId: string) => void;
+  /**
+   * When provided together with layoutBbox, enables click-to-inspect mode.
+   * The image shows a crosshair cursor and sends click coordinates to
+   * GET /api/v1/query/{runId}.
+   */
+  layoutBbox?: LayoutBbox;
 }
 
 function DownloadLink({ href, label }: { href: string | null; label: string }): React.ReactElement | null {
@@ -46,58 +70,115 @@ function DownloadLink({ href, label }: { href: string | null; label: string }): 
   );
 }
 
-export function LayoutSnapshot({ runId, artifacts, onOpenVnc }: Props): React.ReactElement {
+export function LayoutSnapshot({ runId, artifacts, onOpenVnc, layoutBbox }: Props): React.ReactElement {
   const pngUrl = artifacts?.layout_png_url ?? null;
   const hasPng = Boolean(pngUrl);
   const hasArtifacts = Boolean(artifacts);
   const [vncLoading, setVncLoading] = useState(false);
   const [vncError, setVncError] = useState<string | null>(null);
 
+  // Click-to-inspect state
+  const [inspectElements, setInspectElements] = useState<InspectElement[] | null>(null);
+  const [inspectLoading, setInspectLoading] = useState(false);
+
+  const inspectEnabled = Boolean(runId && layoutBbox);
+
+  /**
+   * Handle click on layout image — map pixel coordinates to microns (with Y inversion)
+   * and query the backend for matching cell instances.
+   *
+   * Y-axis inversion: PNG origin (0,0) is top-left; EDA origin (0,0) is bottom-left.
+   * yUm = (1 - clickY/height) * (ymax - ymin) + ymin
+   */
+  const handleImageClick = async (e: React.MouseEvent<HTMLImageElement>) => {
+    if (!inspectEnabled || !layoutBbox) return;
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const clickY = e.clientY - rect.top;
+    const pxW = rect.width;
+    const pxH = rect.height;
+
+    // Map pixel → micron with Y-axis inversion (PNG Y-down, EDA Y-up)
+    const xUm = (clickX / pxW) * (layoutBbox.xmax - layoutBbox.xmin) + layoutBbox.xmin;
+    const yUm = (1 - clickY / pxH) * (layoutBbox.ymax - layoutBbox.ymin) + layoutBbox.ymin;
+
+    setInspectLoading(true);
+    try {
+      const result = await clickToInspect(runId, xUm, yUm);
+      setInspectElements(result.elements);
+    } finally {
+      setInspectLoading(false);
+    }
+  };
+
+  const handleDismissSidebar = () => {
+    setInspectElements(null);
+    setInspectLoading(false);
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      {/* Layout PNG */}
-      <div
-        style={{
-          background: "#0d1117",
-          border: "1px solid #30363d",
-          borderRadius: 8,
-          overflow: "hidden",
-          minHeight: 200,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        {!hasArtifacts ? (
-          <div style={{ color: "#8b949e", fontSize: 14, padding: 24, textAlign: "center" }}>
-            <div
+      {/* Layout PNG + InspectSidebar (flex row) */}
+      <div style={{ display: "flex", alignItems: "stretch" }}>
+        {/* Layout PNG */}
+        <div
+          style={{
+            flex: 1,
+            background: "#0d1117",
+            border: "1px solid #30363d",
+            borderRadius: 8,
+            overflow: "hidden",
+            minHeight: 200,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          {!hasArtifacts ? (
+            <div style={{ color: "#8b949e", fontSize: 14, padding: 24, textAlign: "center" }}>
+              <div
+                style={{
+                  width: 24,
+                  height: 24,
+                  border: "2px solid #30363d",
+                  borderTopColor: "#58a6ff",
+                  borderRadius: "50%",
+                  margin: "0 auto 12px",
+                  animation: "spin 1s linear infinite",
+                }}
+              />
+              Loading layout preview...
+            </div>
+          ) : !hasPng ? (
+            <div style={{ color: "#8b949e", fontSize: 14, padding: 24, textAlign: "center" }}>
+              <div style={{ fontSize: 32, marginBottom: 8 }}>&#9203;</div>
+              Layout preview generating...
+              <div style={{ fontSize: 12, marginTop: 4, color: "#6e7681" }}>
+                The layout PNG is being rendered. Refresh in a few seconds.
+              </div>
+            </div>
+          ) : (
+            <img
+              src={pngUrl!}
+              alt="Layout snapshot"
+              onClick={inspectEnabled ? handleImageClick : undefined}
               style={{
-                width: 24,
-                height: 24,
-                border: "2px solid #30363d",
-                borderTopColor: "#58a6ff",
-                borderRadius: "50%",
-                margin: "0 auto 12px",
-                animation: "spin 1s linear infinite",
+                width: "100%",
+                display: "block",
+                borderRadius: 8,
+                cursor: inspectEnabled ? "crosshair" : "default",
               }}
             />
-            Loading layout preview...
-          </div>
-        ) : !hasPng ? (
-          <div style={{ color: "#8b949e", fontSize: 14, padding: 24, textAlign: "center" }}>
-            <div style={{ fontSize: 32, marginBottom: 8 }}>&#9203;</div>
-            Layout preview generating...
-            <div style={{ fontSize: 12, marginTop: 4, color: "#6e7681" }}>
-              The layout PNG is being rendered. Refresh in a few seconds.
-            </div>
-          </div>
-        ) : (
-          <img
-            src={pngUrl!}
-            alt="Layout snapshot"
-            style={{ width: "100%", display: "block", borderRadius: 8 }}
-          />
-        )}
+          )}
+        </div>
+
+        {/* InspectSidebar — slides in alongside the image */}
+        <InspectSidebar
+          elements={inspectElements}
+          isLoading={inspectLoading}
+          onDismiss={handleDismissSidebar}
+        />
       </div>
 
       {/* Open in VNC viewer button — LOCKED position: directly below PNG */}
