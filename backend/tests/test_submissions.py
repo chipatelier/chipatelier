@@ -538,3 +538,120 @@ async def test_leaderboard_anonymity(test_client: TestClient, async_session):
     # The self entry should be student2 (score 70)
     assert self_entries[0]["user_id"] == student2_id
     assert self_entries[0]["score"] == 70.0
+
+
+@pytest.mark.asyncio
+async def test_leaderboard_wns_tiebreaker(test_client: TestClient, async_session):
+    """DASH-01: For equal scores, leaderboard ranks by WNS DESC (higher WNS = better rank).
+
+    This test exists to validate the performance contract: in production PostgreSQL,
+    the SQL ORDER BY text('(runs.ppa->>worst_negative_slack)::numeric DESC NULLS LAST')
+    must be present in the query so the idx_runs_wns_numeric functional B-tree index
+    is used (not a Python-side sort).
+
+    Under SQLite (test env), the Python-side fallback sort produces the same ordering —
+    this test validates the observable contract regardless of backend.
+    """
+    from app.models.project import Project
+    from app.models.run import Run
+    from app.models.submission import Submission as Sub
+    from app.models.user import User
+
+    inst_id, inst_token, course_id, code = await _create_instructor_and_course(
+        test_client, async_session, "inst_wns_tiebreaker@example.com"
+    )
+
+    # Create assignment (checkpoint rules are irrelevant — we insert score directly)
+    resp = test_client.post(
+        f"/api/v1/courses/{course_id}/assignments",
+        json={
+            "title": "WNS Tiebreaker Lab",
+            "locked_params": {},
+            "checkpoint_rules": {"hard": [], "scored": []},
+        },
+        headers={"Authorization": f"Bearer {inst_token}"},
+    )
+    assert resp.status_code == 201, f"Assignment creation failed: {resp.text}"
+    assignment_id = resp.json()["id"]
+    test_client.patch(
+        f"/api/v1/assignments/{assignment_id}/open",
+        json={"is_open": True},
+        headers={"Authorization": f"Bearer {inst_token}"},
+    )
+
+    async def create_student_submission_with_wns(email: str, score: float, wns: float) -> str:
+        """Create student, project, run, and submission. Returns student_id."""
+        token = _register_and_login(test_client, email)
+        me = test_client.get("/api/v1/users/me", headers={"Authorization": f"Bearer {token}"})
+        student_id = me.json()["id"]
+
+        test_client.post(
+            f"/api/v1/courses/{course_id}/enroll",
+            json={"enrollment_code": code},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+        project = Project(user_id=uuid.UUID(student_id), name="WNS Test Project", pdk="sky130hd")
+        async_session.add(project)
+        await async_session.flush()
+
+        run = Run(
+            project_id=project.id,
+            status="complete",
+            ppa={"worst_negative_slack": wns, "drc_violations": 0},
+            config={},
+        )
+        async_session.add(run)
+        await async_session.flush()
+
+        sub = Sub(
+            assignment_id=uuid.UUID(assignment_id),
+            user_id=uuid.UUID(student_id),
+            run_id=run.id,
+            score=score,
+            grading_status="complete",
+        )
+        async_session.add(sub)
+        await async_session.commit()
+        return student_id
+
+    # Two students with identical score=80.0 but different WNS:
+    # student_a: WNS=-0.1 (less negative, closer to 0, BETTER)
+    # student_b: WNS=-0.3 (more negative, further from 0, WORSE)
+    student_a_id = await create_student_submission_with_wns("student_wns_a@example.com", 80.0, -0.1)
+    student_b_id = await create_student_submission_with_wns("student_wns_b@example.com", 80.0, -0.3)
+
+    # Call leaderboard as student_a
+    token_a = test_client.post(
+        "/api/v1/auth/login",
+        json={"email": "student_wns_a@example.com", "password": "securepass1"},
+    ).json()["access_token"]
+    lb_resp = test_client.get(
+        f"/api/v1/assignments/{assignment_id}/leaderboard",
+        headers={"Authorization": f"Bearer {token_a}"},
+    )
+    assert lb_resp.status_code == 200, f"Expected 200, got {lb_resp.status_code}: {lb_resp.text}"
+    entries = lb_resp.json()
+
+    assert len(entries) == 2, f"Expected 2 entries, got {len(entries)}"
+
+    # rank 1 must be student_a (WNS -0.1 is better than -0.3)
+    assert entries[0]["rank"] == 1
+    assert entries[1]["rank"] == 2
+
+    # Both have the same score
+    assert entries[0]["score"] == pytest.approx(80.0)
+    assert entries[1]["score"] == pytest.approx(80.0)
+
+    # WNS tiebreaker: rank 1 has WNS=-0.1 (higher = better), rank 2 has WNS=-0.3
+    assert entries[0]["wns"] == pytest.approx(-0.1), (
+        f"Expected rank 1 WNS=-0.1 (better tiebreaker), got {entries[0]['wns']}"
+    )
+    assert entries[1]["wns"] == pytest.approx(-0.3), (
+        f"Expected rank 2 WNS=-0.3 (worse tiebreaker), got {entries[1]['wns']}"
+    )
+
+    # Explicit ordering check: rank 1 WNS must be strictly greater than rank 2 WNS
+    assert float(entries[0]["wns"]) > float(entries[1]["wns"]), (
+        f"Expected rank1 WNS ({entries[0]['wns']}) > rank2 WNS ({entries[1]['wns']})"
+    )
