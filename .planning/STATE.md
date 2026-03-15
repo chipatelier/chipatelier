@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 02-06-PLAN.md (Leaderboard, Run Comparison, Instructor Dashboard)
-last_updated: "2026-03-15T09:25:00.146Z"
+stopped_at: Completed 02-07-PLAN.md (Leaderboard WNS DB-level ORDER BY gap closure)
+last_updated: "2026-03-15T22:16:14.852Z"
 last_activity: "2026-03-15 — Completed 02-01: Alembic migration 0003, 4 ORM models, 19 test stubs"
 progress:
   total_phases: 3
   completed_phases: 2
-  total_plans: 14
-  completed_plans: 14
+  total_plans: 15
+  completed_plans: 15
 ---
 
 # Project State
@@ -55,6 +55,7 @@ Progress: [████████████████████] 8/8 pla
 | Phase 02-learning-layer P04 | 9 | 2 tasks | 16 files |
 | Phase 02-learning-layer P05 | 12 | 2 tasks | 8 files |
 | Phase 02-learning-layer P06 | 17 | 2 tasks | 14 files |
+| Phase 02-learning-layer P07 | 2 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -110,6 +111,8 @@ Recent decisions affecting current work:
 - [Phase 02-learning-layer]: Leaderboard WNS tiebreaker uses Python-side itertools.groupby sort for SQLite test compat; PostgreSQL uses idx_runs_wns_numeric B-tree index for production
 - [Phase 02-learning-layer]: Leaderboard anonymity enforced at API level via is_self bool; names never in response body; frontend displays Rank N for non-self rows
 - [Phase 02-learning-layer]: CSV export uses io.StringIO + StreamingResponse single-batch pattern; sufficient for class-size datasets (50-300 rows)
+- [Phase 02-learning-layer]: Dialect detection uses settings.DATABASE_URL check (not db.bind introspection) — async session bind may be None; settings is always available
+- [Phase 02-learning-layer]: Leaderboard WNS SQL text() ORDER BY guarded by is_postgres; Python sort preserved as SQLite fallback — closes DASH-01 gap
 
 ### Pending Todos
 
@@ -129,6 +132,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-15T09:25:00.142Z
-Stopped at: Completed 02-06-PLAN.md (Leaderboard, Run Comparison, Instructor Dashboard)
+Last session: 2026-03-15T22:16:14.848Z
+Stopped at: Completed 02-07-PLAN.md (Leaderboard WNS DB-level ORDER BY gap closure)
 Resume file: None
