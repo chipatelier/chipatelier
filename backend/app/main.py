@@ -16,10 +16,41 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application lifespan: initialize DB on startup, close Redis on shutdown."""
+    """Application lifespan: initialize DB and storage on startup."""
     await init_db()
+    _ensure_storage_bucket()
     yield
     await close_redis()
+
+
+def _ensure_storage_bucket() -> None:
+    """Create the MinIO artifacts bucket if it doesn't exist.
+
+    Runs synchronously at startup — bucket creation is instantaneous and
+    only does work on first boot or after a MinIO data wipe.
+    """
+    import logging
+    import boto3
+    from botocore.exceptions import ClientError
+
+    log = logging.getLogger("chipatelier.startup")
+    try:
+        client = boto3.client(
+            "s3",
+            endpoint_url=f"http://{settings.MINIO_ENDPOINT}",
+            aws_access_key_id=settings.MINIO_ACCESS_KEY,
+            aws_secret_access_key=settings.MINIO_SECRET_KEY,
+        )
+        try:
+            client.head_bucket(Bucket=settings.S3_BUCKET_ARTIFACTS)
+        except ClientError as e:
+            if e.response["Error"]["Code"] in ("404", "NoSuchBucket"):
+                client.create_bucket(Bucket=settings.S3_BUCKET_ARTIFACTS)
+                log.info("Created MinIO bucket: %s", settings.S3_BUCKET_ARTIFACTS)
+    except Exception as exc:
+        logging.getLogger("chipatelier.startup").warning(
+            "Could not ensure storage bucket (MinIO may not be ready yet): %s", exc
+        )
 
 
 app = FastAPI(
@@ -40,6 +71,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
 
 
 @app.get("/healthz", tags=["health"])
