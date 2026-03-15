@@ -3,14 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Phase 2 context gathered
-last_updated: "2026-03-15T07:07:15.430Z"
-last_activity: "2026-03-14 — Completed quick task 1: Add Missing — Root-level Documentation"
+stopped_at: "Completed 02-01-PLAN.md (Phase 2 database foundation)"
+last_updated: "2026-03-15T08:25:00.000Z"
+last_activity: "2026-03-15 — Completed 02-01: Learning Layer Database Foundation"
 progress:
   total_phases: 3
   completed_phases: 1
   total_plans: 8
   completed_plans: 8
+  phase2_plans_completed: 1
 ---
 
 # Project State
@@ -24,11 +25,11 @@ See: .planning/PROJECT.md (updated 2026-03-12)
 
 ## Current Position
 
-Phase: 1 of 3 (Core Flow) — COMPLETE
-Phase 2: Learning Layer — Not yet planned
-Last activity: 2026-03-14 — Completed quick task 1: Add Missing — Root-level Documentation
+Phase: 2 of 3 (Learning Layer) — IN PROGRESS
+Phase 2: Learning Layer — Plan 01 complete (database foundation)
+Last activity: 2026-03-15 — Completed 02-01: Alembic migration 0003, 4 ORM models, 19 test stubs
 
-Progress: [████████████████████] 8/8 plans Phase 1 complete
+Progress: [████████████████████] 8/8 plans Phase 1 complete | Phase 2: 1 plan complete
 
 ## Performance Metrics
 
@@ -49,6 +50,7 @@ Progress: [████████████████████] 8/8 pla
 | Phase 01-core-flow P06 | 9 | 1 tasks | 11 files |
 | Phase 01-core-flow P07 | 45 | 3 tasks | 21 files |
 | Phase 01-core-flow P08 | 13 | 3 tasks | 10 files |
+| Phase 02-learning-layer P01 | 25 | 2 tasks | 13 files |
 
 ## Accumulated Context
 
@@ -88,6 +90,9 @@ Recent decisions affecting current work:
 - [Phase 01-core-flow]: worker.celery_app uses try/except config_from_object(worker.celeryconfig) with fallback to celeryconfig for production CWD
 - [Phase 01-core-flow]: VNC start_session.sh uses ORFS open.tcl with ODB_FILE + DESIGN_CONFIG; VNC_ODB_PATH replaces VNC_DEF_PATH
 - [Phase 01-core-flow]: parse_ppa_metrics returns (ppa, stage_metrics) tuple; iterates per-stage ORFS JSON files; stage_metrics written to DB
+- [Phase 02-learning-layer 02-01]: Functional B-tree index on (ppa->>'worst_negative_slack')::numeric for leaderboard ORDER BY — GIN does not support ORDER BY with numeric cast
+- [Phase 02-learning-layer 02-01]: op.execute() with raw SQL for functional indexes — SQLAlchemy Index() API does not support expressions with ::numeric cast
+- [Phase 02-learning-layer 02-01]: Wave 0 stub pattern — import models at top of test file to catch ImportError, pytest.mark.skip(reason=...) on each function
 
 ### Pending Todos
 
@@ -97,7 +102,7 @@ None yet.
 
 - [Phase 1]: CPU budget on DL380 Gen9 is tight (28-36 cores) — profile realistic mixed workload before Phase 2 ships
 - [Phase 1]: Orphaned container watchdog must be built alongside job pipeline, not after
-- [Phase 2]: PostgreSQL JSONB leaderboard ordering requires functional B-tree index with ::numeric cast, not GIN
+- [Phase 2 — RESOLVED 02-01]: PostgreSQL JSONB leaderboard ordering requires functional B-tree index with ::numeric cast, not GIN — idx_runs_wns_numeric created in migration 0003
 
 ### Quick Tasks Completed
 
@@ -107,6 +112,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-15T07:07:15.426Z
-Stopped at: Phase 2 context gathered
-Resume file: .planning/phases/02-learning-layer/02-CONTEXT.md
+Last session: 2026-03-15T08:25:00.000Z
+Stopped at: Completed 02-01-PLAN.md (Phase 2 database foundation)
+Resume file: .planning/phases/02-learning-layer/02-01-SUMMARY.md

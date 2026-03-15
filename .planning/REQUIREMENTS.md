@@ -30,20 +30,20 @@
 ### Layout Viewer
 
 - [x] **LAYT-01**: User can launch a VNC viewer tab that opens the OpenROAD Qt GUI with their completed DEF pre-loaded (noVNC → WebSocket proxy via Nginx token routing)
-- [ ] **LAYT-02**: User can query layout element details (cell name, instance, net, layer) by providing coordinates via the click-to-inspect API (OpenDB query endpoint on completed DEF)
+- [x] **LAYT-02**: User can query layout element details (cell name, instance, net, layer) by providing coordinates via the click-to-inspect API (OpenDB query endpoint on completed DEF)
 
 ### Config Editor
 
-- [ ] **EDIT-01**: User can edit a project's config.mk parameters in a guided form mode that surfaces editable parameters with descriptions and enforces locked parameter constraints (when enrolled in an assignment)
-- [ ] **EDIT-02**: User can edit config.mk in raw Monaco editor mode when full control is needed (outside assignment constraints)
+- [x] **EDIT-01**: User can edit a project's config.mk parameters in a guided form mode that surfaces editable parameters with descriptions and enforces locked parameter constraints (when enrolled in an assignment)
+- [x] **EDIT-02**: User can edit config.mk in raw Monaco editor mode when full control is needed (outside assignment constraints)
 
 ### Courses & Assignments
 
-- [ ] **COUR-01**: Instructor can create an assignment specifying: design, PDK, target stage, locked parameters, editable parameters, checkpoint rules (hard and scored), and due date
-- [ ] **COUR-02**: Instructor can create a course and generate an enrollment code (format: `VLSI-YYYY-XXXX`, 6-8 chars, collision-checked)
-- [ ] **COUR-03**: Student can enroll in a course by entering an enrollment code
-- [ ] **COUR-04**: Student can submit a completed run against an assignment for grading
-- [ ] **COUR-05**: System automatically evaluates checkpoint rules after submission (hard gates: DRC=0, flow complete; scored: WNS/TNS targets with partial credit) and stores the score
+- [x] **COUR-01**: Instructor can create an assignment specifying: design, PDK, target stage, locked parameters, editable parameters, checkpoint rules (hard and scored), and due date
+- [x] **COUR-02**: Instructor can create a course and generate an enrollment code (format: `VLSI-YYYY-XXXX`, 6-8 chars, collision-checked)
+- [x] **COUR-03**: Student can enroll in a course by entering an enrollment code
+- [x] **COUR-04**: Student can submit a completed run against an assignment for grading
+- [x] **COUR-05**: System automatically evaluates checkpoint rules after submission (hard gates: DRC=0, flow complete; scored: WNS/TNS targets with partial credit) and stores the score
 
 ### AI Assistance
 
@@ -53,9 +53,9 @@
 
 ### Dashboard & Reporting
 
-- [ ] **DASH-01**: Student can see an anonymous leaderboard for an assignment showing PPA rankings (WNS, area, power) without revealing other students' names
-- [ ] **DASH-02**: User can compare metrics across multiple runs for the same project in a side-by-side view
-- [ ] **DASH-03**: Instructor can view a class-wide dashboard: per-student run counts, submission status, grade distribution, and current job queue depth
+- [x] **DASH-01**: Student can see an anonymous leaderboard for an assignment showing PPA rankings (WNS, area, power) without revealing other students' names
+- [x] **DASH-02**: User can compare metrics across multiple runs for the same project in a side-by-side view
+- [x] **DASH-03**: Instructor can view a class-wide dashboard: per-student run counts, submission status, grade distribution, and current job queue depth
 - [x] **DASH-04**: User sees their current storage usage prominently in the dashboard (e.g., "1.2 GB of 5 GB used")
 
 ---
@@ -120,17 +120,17 @@ Which phases cover which requirements. Updated during roadmap creation.
 | RSLT-04 | Phase 1 | Complete |
 | LAYT-01 | Phase 1 | Complete |
 | DASH-04 | Phase 1 | Complete |
-| COUR-01 | Phase 2 | Pending |
-| COUR-02 | Phase 2 | Pending |
-| COUR-03 | Phase 2 | Pending |
-| COUR-04 | Phase 2 | Pending |
-| COUR-05 | Phase 2 | Pending |
-| EDIT-01 | Phase 2 | Pending |
-| EDIT-02 | Phase 2 | Pending |
-| LAYT-02 | Phase 2 | Pending |
-| DASH-01 | Phase 2 | Pending |
-| DASH-02 | Phase 2 | Pending |
-| DASH-03 | Phase 2 | Pending |
+| COUR-01 | Phase 2 | Complete |
+| COUR-02 | Phase 2 | Complete |
+| COUR-03 | Phase 2 | Complete |
+| COUR-04 | Phase 2 | Complete |
+| COUR-05 | Phase 2 | Complete |
+| EDIT-01 | Phase 2 | Complete |
+| EDIT-02 | Phase 2 | Complete |
+| LAYT-02 | Phase 2 | Complete |
+| DASH-01 | Phase 2 | Complete |
+| DASH-02 | Phase 2 | Complete |
+| DASH-03 | Phase 2 | Complete |
 | AI-01 | Phase 3 | Pending |
 | AI-02 | Phase 3 | Pending |
 | AI-03 | Phase 3 | Pending |
