@@ -13,6 +13,7 @@ from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
+from app.core.config import get_settings
 from app.core.database import get_db
 from app.models.assignment import Assignment
 from app.models.enrollment import CourseEnrollment
@@ -257,6 +258,12 @@ async def get_leaderboard(
     """
     await _get_assignment_or_404(assignment_id, db)
 
+    # Detect PostgreSQL vs SQLite (test) — use settings.DATABASE_URL for reliable detection.
+    # PostgreSQL path: SQL-level WNS ORDER BY uses idx_runs_wns_numeric functional B-tree index.
+    # SQLite path: Python-side groupby+sort fallback (SQLite does not support ->> JSON operator).
+    _settings = get_settings()
+    is_postgres = "postgresql" in _settings.DATABASE_URL
+
     # Best submission per user subquery
     best_score_sub = (
         select(
@@ -268,9 +275,15 @@ async def get_leaderboard(
         .subquery()
     )
 
-    # Join back to get the run associated with the best score submission.
-    # WNS ordering is done in Python to maintain SQLite test compatibility
-    # (SQLite does not support ->> JSON operator; PostgreSQL uses B-tree functional index).
+    # Build ORDER BY clauses.
+    # PostgreSQL: add SQL-level WNS tiebreaker — uses idx_runs_wns_numeric B-tree index.
+    # SQLite: omit the text() expression (unsupported) and fall back to Python sort below.
+    order_clauses = [best_score_sub.c.best_score.desc().nullslast()]
+    if is_postgres:
+        order_clauses.append(
+            text("(runs.ppa->>'worst_negative_slack')::numeric DESC NULLS LAST")
+        )
+
     stmt = (
         select(
             best_score_sub.c.user_id,
@@ -285,15 +298,13 @@ async def get_leaderboard(
             & (Submission.score == best_score_sub.c.best_score),
         )
         .join(Run, Submission.run_id == Run.id)
-        .order_by(
-            best_score_sub.c.best_score.desc().nullslast(),
-        )
+        .order_by(*order_clauses)
     )
 
     results = await db.execute(stmt)
     rows = results.all()
 
-    # Python-side WNS tiebreaker sort (same order as DB-level for equal scores)
+    # Python-side WNS tiebreaker sort key (used both for SQLite fallback sort and wns value in response)
     def _wns_sort_key(row: tuple) -> float:
         """Return WNS as float for sorting; None becomes -inf (worst)."""
         ppa = row[2] or {}
@@ -303,14 +314,18 @@ async def get_leaderboard(
         except (TypeError, ValueError):
             return float("-inf")
 
-    # Stable sort: rows already sorted by score DESC; for ties, apply WNS DESC
-    from itertools import groupby
+    if not is_postgres:
+        # SQLite fallback: stable sort by score DESC already done; apply WNS tiebreaker in Python
+        from itertools import groupby
 
-    sorted_rows: list = []
-    for _score, group in groupby(rows, key=lambda r: r[1]):
-        group_list = list(group)
-        group_list.sort(key=_wns_sort_key, reverse=True)
-        sorted_rows.extend(group_list)
+        sorted_rows: list = []
+        for _score, group in groupby(rows, key=lambda r: r[1]):
+            group_list = list(group)
+            group_list.sort(key=_wns_sort_key, reverse=True)
+            sorted_rows.extend(group_list)
+    else:
+        # PostgreSQL: DB-level ORDER BY already applied the WNS tiebreaker via idx_runs_wns_numeric
+        sorted_rows = list(rows)
 
     return [
         {
