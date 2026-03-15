@@ -17,16 +17,31 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # pgvector: zero-cost extension install now, Phase 3 AI adds vector columns
-    op.execute("CREATE EXTENSION IF NOT EXISTS vector")
+    # pgvector: best-effort install — skip silently if not available on this host.
+    # Phase 3 AI features require it; Phase 1/2 run fine without it.
+    op.execute("""
+        DO $$
+        BEGIN
+            CREATE EXTENSION IF NOT EXISTS vector;
+        EXCEPTION WHEN OTHERS THEN
+            NULL;  -- pgvector not installed; skipped
+        END
+        $$
+    """)
 
     # queue_priority tracks whether this run goes to high_priority or normal queue
     # Valid values: 'high_priority' (instructor/admin runs), 'normal' (student runs)
     op.execute(
-        "ALTER TABLE runs ADD COLUMN queue_priority TEXT NOT NULL DEFAULT 'normal'"
+        "ALTER TABLE runs ADD COLUMN IF NOT EXISTS queue_priority TEXT NOT NULL DEFAULT 'normal'"
+    )
+
+    # celery_task_id stores the Celery async result ID for job cancellation
+    op.execute(
+        "ALTER TABLE runs ADD COLUMN IF NOT EXISTS celery_task_id TEXT"
     )
 
 
 def downgrade() -> None:
-    op.execute("ALTER TABLE runs DROP COLUMN queue_priority")
+    op.execute("ALTER TABLE runs DROP COLUMN IF EXISTS celery_task_id")
+    op.execute("ALTER TABLE runs DROP COLUMN IF EXISTS queue_priority")
     op.execute("DROP EXTENSION IF EXISTS vector")
