@@ -19,6 +19,7 @@ import { Assignment } from "../../store/courseSlice";
 import { CheckpointCards } from "../CheckpointCards";
 import { useGradeStream } from "../../hooks/useGradeStream";
 import { submitRun, getMySubmissions, getPreviewScore, SubmissionResponse } from "../../api/submissions";
+import { getLeaderboard, LeaderboardEntry } from "../../api/courses";
 
 interface Props {
   assignment: Assignment;
@@ -334,6 +335,153 @@ function SubmitTab({ assignment, currentUserId: _currentUserId }: SubmitTabProps
 }
 
 // ---------------------------------------------------------------------------
+// LeaderboardTab
+// ---------------------------------------------------------------------------
+
+function LeaderboardTab({
+  assignment,
+  currentUserId,
+}: {
+  assignment: Assignment;
+  currentUserId: string;
+}) {
+  const [entries, setEntries] = useState<LeaderboardEntry[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLoading(true);
+    setError(null);
+    getLeaderboard(assignment.id)
+      .then(setEntries)
+      .catch(() => setError("Failed to load leaderboard"))
+      .finally(() => setLoading(false));
+  }, [assignment.id]);
+
+  if (loading) {
+    return (
+      <div style={{ color: "#8b949e", fontSize: 14 }}>Loading leaderboard...</div>
+    );
+  }
+
+  if (error) {
+    return <div style={{ color: "#f85149", fontSize: 14 }}>{error}</div>;
+  }
+
+  if (!entries || entries.length === 0) {
+    return (
+      <div style={{ color: "#6e7681", fontStyle: "italic", fontSize: 14 }}>
+        No submissions yet. Be the first to submit!
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ overflowX: "auto" }}>
+      <table
+        style={{
+          borderCollapse: "collapse",
+          fontSize: 13,
+          width: "100%",
+        }}
+      >
+        <thead>
+          <tr
+            style={{
+              background: "#161b22",
+              borderBottom: "1px solid #30363d",
+            }}
+          >
+            {["Rank", "Score", "WNS (ns)"].map((col) => (
+              <th
+                key={col}
+                style={{
+                  color: "#8b949e",
+                  fontSize: 11,
+                  fontWeight: 600,
+                  letterSpacing: "0.04em",
+                  padding: "8px 12px",
+                  textAlign: col === "Rank" ? "center" : "right",
+                  textTransform: "uppercase",
+                }}
+              >
+                {col}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {entries.map((entry) => {
+            const isSelf = entry.is_self || entry.user_id === currentUserId;
+            return (
+              <tr
+                key={entry.user_id}
+                style={{
+                  background: isSelf ? "#1f2d3d" : entry.rank % 2 === 0 ? "#161b22" : "#0d1117",
+                  borderTop: "1px solid #1c2128",
+                  borderLeft: isSelf ? "2px solid #58a6ff" : "2px solid transparent",
+                }}
+              >
+                <td
+                  style={{
+                    color: "#8b949e",
+                    fontWeight: 600,
+                    padding: "8px 12px",
+                    textAlign: "center",
+                  }}
+                >
+                  {isSelf ? (
+                    <span>
+                      #{entry.rank}{" "}
+                      <span
+                        style={{
+                          background: "#1f3d5c",
+                          borderRadius: 4,
+                          color: "#58a6ff",
+                          fontSize: 10,
+                          fontWeight: 600,
+                          marginLeft: 4,
+                          padding: "1px 6px",
+                        }}
+                      >
+                        You
+                      </span>
+                    </span>
+                  ) : (
+                    `Rank ${entry.rank}`
+                  )}
+                </td>
+                <td
+                  style={{
+                    color: entry.score !== null ? "#3fb950" : "#6e7681",
+                    fontWeight: 600,
+                    padding: "8px 12px",
+                    textAlign: "right",
+                  }}
+                >
+                  {entry.score !== null ? `${entry.score} pts` : "—"}
+                </td>
+                <td
+                  style={{
+                    color: "#c9d1d9",
+                    padding: "8px 12px",
+                    textAlign: "right",
+                  }}
+                >
+                  {entry.wns !== null && entry.wns !== undefined
+                    ? entry.wns.toFixed(4)
+                    : "—"}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
 
@@ -398,9 +546,7 @@ export function AssignmentView({ assignment, currentUserId }: Props) {
       )}
 
       {activeTab === "leaderboard" && (
-        <div style={{ color: "#6e7681", fontStyle: "italic", fontSize: 14 }}>
-          Leaderboard will be available in a future update.
-        </div>
+        <LeaderboardTab assignment={assignment} currentUserId={currentUserId} />
       )}
     </div>
   );
