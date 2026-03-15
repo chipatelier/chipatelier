@@ -3,15 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: "Completed 02-01-PLAN.md (Phase 2 database foundation)"
-last_updated: "2026-03-15T08:25:00.000Z"
-last_activity: "2026-03-15 — Completed 02-01: Learning Layer Database Foundation"
+stopped_at: Completed 02-02-PLAN.md (Phase 2 course and assignment backend)
+last_updated: "2026-03-15T08:32:12.207Z"
+last_activity: "2026-03-15 — Completed 02-01: Alembic migration 0003, 4 ORM models, 19 test stubs"
 progress:
   total_phases: 3
   completed_phases: 1
-  total_plans: 8
-  completed_plans: 8
-  phase2_plans_completed: 1
+  total_plans: 14
+  completed_plans: 10
 ---
 
 # Project State
@@ -51,6 +50,7 @@ Progress: [████████████████████] 8/8 pla
 | Phase 01-core-flow P07 | 45 | 3 tasks | 21 files |
 | Phase 01-core-flow P08 | 13 | 3 tasks | 10 files |
 | Phase 02-learning-layer P01 | 25 | 2 tasks | 13 files |
+| Phase 02-learning-layer P02 | 5 | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -93,6 +93,8 @@ Recent decisions affecting current work:
 - [Phase 02-learning-layer 02-01]: Functional B-tree index on (ppa->>'worst_negative_slack')::numeric for leaderboard ORDER BY — GIN does not support ORDER BY with numeric cast
 - [Phase 02-learning-layer 02-01]: op.execute() with raw SQL for functional indexes — SQLAlchemy Index() API does not support expressions with ::numeric cast
 - [Phase 02-learning-layer 02-01]: Wave 0 stub pattern — import models at top of test file to catch ImportError, pytest.mark.skip(reason=...) on each function
+- [Phase 02-learning-layer]: Enrollment code collision check uses SELECT before INSERT (10-attempt retry loop) not IntegrityError catch — explicit retry semantics
+- [Phase 02-learning-layer]: locked_params coercion to str applied in both AssignmentCreate and AssignmentResponse validators to prevent int/str round-trip mismatch in JSONB
 
 ### Pending Todos
 
@@ -112,6 +114,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-15T08:25:00.000Z
-Stopped at: Completed 02-01-PLAN.md (Phase 2 database foundation)
-Resume file: .planning/phases/02-learning-layer/02-01-SUMMARY.md
+Last session: 2026-03-15T08:32:12.203Z
+Stopped at: Completed 02-02-PLAN.md (Phase 2 course and assignment backend)
+Resume file: None
