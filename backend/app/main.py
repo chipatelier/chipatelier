@@ -143,3 +143,8 @@ from app.api.routes.assignments import router as assignments_router
 
 app.include_router(courses_router, prefix="/api/v1", tags=["courses"])
 app.include_router(assignments_router, prefix="/api/v1", tags=["assignments"])
+
+# --- Submission + auto-grading routes (plan 02-04) ---
+from app.api.routes.submissions import router as submissions_router
+
+app.include_router(submissions_router, prefix="/api/v1", tags=["submissions"])
