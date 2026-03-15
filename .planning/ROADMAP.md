@@ -55,15 +55,15 @@ Plans:
   3. Student can edit config.mk in both raw Monaco mode and a guided form mode that surfaces editable parameters and enforces locked parameter constraints from the assignment
   4. Student can query layout element details (cell name, net, layer) by clicking on the layout via the click-to-inspect API
   5. Student sees an anonymous leaderboard ranking PPA metrics per assignment; user can compare metrics from multiple runs in a side-by-side view; instructor can view class-wide progress and queue depth
-**Plans**: TBD
+**Plans**: 6 plans
 
 Plans:
-- [ ] 02-01: Course and enrollment — course model, enrollment code generation and validation, student enrollment flow, instructor role gate
-- [ ] 02-02: Assignment system — assignment creation with locked/editable params, checkpoint rule schema, assignment-project linking
-- [ ] 02-03: Auto-grading — checkpoint evaluation Celery task, hard gate and scored criteria logic, submission storage, student notification via WebSocket
-- [ ] 02-04: Config editor — Monaco raw mode, guided form mode with param metadata, locked-param enforcement when enrolled in assignment
-- [ ] 02-05: Layout click-to-inspect — OpenDB query endpoint, coordinate-to-element resolution, frontend click handler on layout PNG
-- [ ] 02-06: Leaderboard, run comparison, instructor dashboard — JSONB functional B-tree indexes for leaderboard ordering, side-by-side metrics view, class-wide dashboard
+- [ ] 02-01-PLAN.md — DB foundation: Alembic migration 0003 (courses, enrollments, assignments, submissions tables + leaderboard indexes), 4 ORM models, all test scaffolds (Wave 0)
+- [ ] 02-02-PLAN.md — Course + enrollment backend: POST /courses (enrollment code gen), POST /enroll, assignment CRUD with locked/editable params, instructor role gate
+- [ ] 02-03-PLAN.md — Config editor frontend: Form/Raw toggle, Monaco raw mode, guided ParamForm with 7 curated ORFS params, locked-param greying with badge
+- [ ] 02-04-PLAN.md — Submission + auto-grading: POST /submit with locked-param validation, checkpoint_eval Celery task, grade push via Redis pubsub + WebSocket, CheckpointCards preview
+- [ ] 02-05-PLAN.md — Click-to-inspect: OpenROAD subprocess query endpoint, pixel→micron coordinate mapping with Y-inversion, InspectSidebar sliding panel
+- [ ] 02-06-PLAN.md — Leaderboard + run comparison + instructor dashboard: functional B-tree leaderboard query, side-by-side RunComparison with color coding, CSV export, CourseNav sidebar
 
 ### Phase 3: AI Assistance
 **Goal**: Students get plain-language help from a locally-hosted AI that understands their specific run — without sending any design data to cloud services
