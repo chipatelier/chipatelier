@@ -121,37 +121,40 @@ class TestAlembicMigration:
     def test_migration_file_exists(self):
         """0001_initial_schema.py migration file exists."""
         import pathlib
-        migration_file = pathlib.Path(
-            "/opt/developments/chipatelier/backend/alembic/versions/0001_initial_schema.py"
-        )
+        migration_file = pathlib.Path(__file__).parents[1] / "alembic/versions/0001_initial_schema.py"
         assert migration_file.exists(), "Migration file not found"
 
     def test_migration_creates_users_table(self):
         """Migration creates users table."""
-        with open("/opt/developments/chipatelier/backend/alembic/versions/0001_initial_schema.py") as f:
-            content = f.read()
+        import pathlib
+        migration_file = pathlib.Path(__file__).parents[1] / "alembic/versions/0001_initial_schema.py"
+        content = migration_file.read_text()
         assert "users" in content.lower()
 
     def test_migration_creates_projects_table(self):
         """Migration creates projects table."""
-        with open("/opt/developments/chipatelier/backend/alembic/versions/0001_initial_schema.py") as f:
-            content = f.read()
+        import pathlib
+        migration_file = pathlib.Path(__file__).parents[1] / "alembic/versions/0001_initial_schema.py"
+        content = migration_file.read_text()
         assert "projects" in content.lower()
 
     def test_migration_creates_runs_table(self):
         """Migration creates runs table."""
-        with open("/opt/developments/chipatelier/backend/alembic/versions/0001_initial_schema.py") as f:
-            content = f.read()
+        import pathlib
+        migration_file = pathlib.Path(__file__).parents[1] / "alembic/versions/0001_initial_schema.py"
+        content = migration_file.read_text()
         assert "runs" in content.lower()
 
     def test_migration_creates_vnc_sessions_table(self):
         """Migration creates vnc_sessions table."""
-        with open("/opt/developments/chipatelier/backend/alembic/versions/0001_initial_schema.py") as f:
-            content = f.read()
+        import pathlib
+        migration_file = pathlib.Path(__file__).parents[1] / "alembic/versions/0001_initial_schema.py"
+        content = migration_file.read_text()
         assert "vnc_sessions" in content.lower()
 
     def test_migration_has_gin_indexes(self):
         """Migration creates GIN indexes for JSONB columns."""
-        with open("/opt/developments/chipatelier/backend/alembic/versions/0001_initial_schema.py") as f:
-            content = f.read()
+        import pathlib
+        migration_file = pathlib.Path(__file__).parents[1] / "alembic/versions/0001_initial_schema.py"
+        content = migration_file.read_text()
         assert "GIN" in content or "gin" in content.lower()

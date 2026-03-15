@@ -39,7 +39,7 @@ def generate_png(self, run_id: str, workspace: str) -> None:
         6. Parse PPA metrics from metadata.json
         7. Update run record in DB: artifact_path + ppa
     """
-    from config import get_settings
+    from app.core.config import get_settings
     settings = get_settings()
 
     # Find results directory in workspace
