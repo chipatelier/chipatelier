@@ -20,6 +20,7 @@ dependencies = [
     "httpx==0.27.*",
     "python-multipart==0.0.12",
     "aiofiles==24.*",
+    "prometheus-fastapi-instrumentator==7.*",
 ]
 
 [project.optional-dependencies]

@@ -5,6 +5,7 @@ from typing import Any
 from fastapi import FastAPI, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from prometheus_fastapi_instrumentator import Instrumentator
 
 from app.core.config import get_settings
 from app.core.database import init_db
@@ -84,6 +85,9 @@ app.include_router(users_routes.router, prefix="/api/v1/users", tags=["users"])
 app.include_router(projects_router, prefix="/api/v1")
 app.include_router(jobs_router, prefix="/api/v1")
 app.include_router(ws_router, prefix="/api/v1/ws", tags=["websocket"])
+
+# --- Prometheus metrics ---
+Instrumentator().instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
 
 # --- Artifacts routes (plan 01-05) ---
 from app.api.routes.artifacts import router as artifacts_router

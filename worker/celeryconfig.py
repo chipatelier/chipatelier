@@ -14,6 +14,7 @@ import os
 
 broker_url = os.environ.get("REDIS_URL", "redis://redis:6379/0")
 result_backend = os.environ.get("REDIS_URL", "redis://redis:6379/0")
+broker_connection_retry_on_startup = True
 
 task_serializer = "json"
 result_serializer = "json"
