@@ -38,7 +38,10 @@ export default function App(): React.ReactElement {
       try {
         if (accessToken) {
           const user = await getMe();
-          setAuth(user, accessToken);
+          // Read the current token from the store rather than using the closure
+          // variable — the Axios refresh interceptor may have silently swapped in
+          // a new access token while getMe() was retrying after a 401.
+          setAuth(user, useStore.getState().accessToken ?? accessToken);
         } else {
           const tokenResp = await refresh();
           const user = await getMe();
