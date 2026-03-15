@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 02-04-PLAN.md (Submission and Auto-Grading)
-last_updated: "2026-03-15T08:49:34.505Z"
+stopped_at: Completed 02-05-PLAN.md (Click-to-Inspect Layout)
+last_updated: "2026-03-15T09:04:24.609Z"
 last_activity: "2026-03-15 — Completed 02-01: Alembic migration 0003, 4 ORM models, 19 test stubs"
 progress:
   total_phases: 3
   completed_phases: 1
   total_plans: 14
-  completed_plans: 12
+  completed_plans: 13
 ---
 
 # Project State
@@ -53,6 +53,7 @@ Progress: [████████████████████] 8/8 pla
 | Phase 02-learning-layer P02 | 5 | 2 tasks | 7 files |
 | Phase 02-learning-layer P03 | 3 | 2 tasks | 7 files |
 | Phase 02-learning-layer P04 | 9 | 2 tasks | 16 files |
+| Phase 02-learning-layer P05 | 12 | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -102,6 +103,9 @@ Recent decisions affecting current work:
 - [Phase 02-learning-layer]: evaluate_checkpoint_rules is a pure function (no DB, no Redis) — enables unit testing without mocking; Celery task handles all side effects
 - [Phase 02-learning-layer]: Grade WS uses single-message pattern (subscribe → receive one → close) vs continuous log stream — grading is a one-shot event
 - [Phase 02-learning-layer]: Multiple submissions stored without server-side score comparison — GET /submissions/mine returns all; frontend shows best; avoids race conditions
+- [Phase 02-learning-layer]: uuid.UUID path parameter required for SQLite test compatibility — UUID column type expects uuid.UUID object, string causes AttributeError on .hex
+- [Phase 02-learning-layer]: InspectSidebar renders null until first layout click (not empty state) — avoids confusing UI before user interaction
+- [Phase 02-learning-layer]: Linear ODB instance scan confirmed correct approach — OpenDB has no spatial index (queryRegion does not exist per RESEARCH.md Pitfall 2)
 
 ### Pending Todos
 
@@ -121,6 +125,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-15T08:49:34.501Z
-Stopped at: Completed 02-04-PLAN.md (Submission and Auto-Grading)
+Last session: 2026-03-15T09:04:24.605Z
+Stopped at: Completed 02-05-PLAN.md (Click-to-Inspect Layout)
 Resume file: None
