@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 02-03-PLAN.md (Config Editor with Form/Raw Toggle)
-last_updated: "2026-03-15T08:37:03.330Z"
+stopped_at: Completed 02-04-PLAN.md (Submission and Auto-Grading)
+last_updated: "2026-03-15T08:49:34.505Z"
 last_activity: "2026-03-15 — Completed 02-01: Alembic migration 0003, 4 ORM models, 19 test stubs"
 progress:
   total_phases: 3
   completed_phases: 1
   total_plans: 14
-  completed_plans: 11
+  completed_plans: 12
 ---
 
 # Project State
@@ -52,6 +52,7 @@ Progress: [████████████████████] 8/8 pla
 | Phase 02-learning-layer P01 | 25 | 2 tasks | 13 files |
 | Phase 02-learning-layer P02 | 5 | 2 tasks | 7 files |
 | Phase 02-learning-layer P03 | 3 | 2 tasks | 7 files |
+| Phase 02-learning-layer P04 | 9 | 2 tasks | 16 files |
 
 ## Accumulated Context
 
@@ -98,6 +99,9 @@ Recent decisions affecting current work:
 - [Phase 02-learning-layer]: locked_params coercion to str applied in both AssignmentCreate and AssignmentResponse validators to prevent int/str round-trip mismatch in JSONB
 - [Phase 02-learning-layer]: Explicit React imports removed from ConfigEditor files: tsconfig uses react-jsx transform with noUnusedLocals=true — import React triggers TS6133
 - [Phase 02-learning-layer]: CURATED_PARAMS in ParamMetadata.ts is the single canonical list of student-editable ORFS params (7 params matching CLAUDE.md safe subset)
+- [Phase 02-learning-layer]: evaluate_checkpoint_rules is a pure function (no DB, no Redis) — enables unit testing without mocking; Celery task handles all side effects
+- [Phase 02-learning-layer]: Grade WS uses single-message pattern (subscribe → receive one → close) vs continuous log stream — grading is a one-shot event
+- [Phase 02-learning-layer]: Multiple submissions stored without server-side score comparison — GET /submissions/mine returns all; frontend shows best; avoids race conditions
 
 ### Pending Todos
 
@@ -117,6 +121,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-15T08:37:03.326Z
-Stopped at: Completed 02-03-PLAN.md (Config Editor with Form/Raw Toggle)
+Last session: 2026-03-15T08:49:34.501Z
+Stopped at: Completed 02-04-PLAN.md (Submission and Auto-Grading)
 Resume file: None
