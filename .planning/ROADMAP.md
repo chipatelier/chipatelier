@@ -55,7 +55,7 @@ Plans:
   3. Student can edit config.mk in both raw Monaco mode and a guided form mode that surfaces editable parameters and enforces locked parameter constraints from the assignment
   4. Student can query layout element details (cell name, net, layer) by clicking on the layout via the click-to-inspect API
   5. Student sees an anonymous leaderboard ranking PPA metrics per assignment; user can compare metrics from multiple runs in a side-by-side view; instructor can view class-wide progress and queue depth
-**Plans**: 6 plans
+**Plans**: 7 plans
 
 Plans:
 - [ ] 02-01-PLAN.md — DB foundation: Alembic migration 0003 (courses, enrollments, assignments, submissions tables + leaderboard indexes), 4 ORM models, all test scaffolds (Wave 0)
@@ -64,6 +64,7 @@ Plans:
 - [ ] 02-04-PLAN.md — Submission + auto-grading: POST /submit with locked-param validation, checkpoint_eval Celery task, grade push via Redis pubsub + WebSocket, CheckpointCards preview
 - [ ] 02-05-PLAN.md — Click-to-inspect: OpenROAD subprocess query endpoint, pixel→micron coordinate mapping with Y-inversion, InspectSidebar sliding panel
 - [ ] 02-06-PLAN.md — Leaderboard + run comparison + instructor dashboard: functional B-tree leaderboard query, side-by-side RunComparison with color coding, CSV export, CourseNav sidebar
+- [ ] 02-07-PLAN.md — Gap closure: add SQL-level WNS ORDER BY text() expression to get_leaderboard() so idx_runs_wns_numeric B-tree index is used in PostgreSQL; add explicit tiebreaker test
 
 ### Phase 3: AI Assistance
 **Goal**: Students get plain-language help from a locally-hosted AI that understands their specific run — without sending any design data to cloud services
@@ -88,5 +89,5 @@ Phases execute in numeric order: 1 → 2 → 3
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Core Flow | 8/8 | Complete   | 2026-03-14 |
-| 2. Learning Layer | 6/6 | Complete   | 2026-03-15 |
+| 2. Learning Layer | 6/7 | Gap closure in progress | 2026-03-15 |
 | 3. AI Assistance | 0/3 | Not started | - |
