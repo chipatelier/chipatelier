@@ -148,3 +148,8 @@ app.include_router(assignments_router, prefix="/api/v1", tags=["assignments"])
 from app.api.routes.submissions import router as submissions_router
 
 app.include_router(submissions_router, prefix="/api/v1", tags=["submissions"])
+
+# --- Click-to-inspect query routes (plan 02-05) ---
+from app.api.routes.query import router as query_router
+
+app.include_router(query_router, prefix="/api/v1", tags=["query"])

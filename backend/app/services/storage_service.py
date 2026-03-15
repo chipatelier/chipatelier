@@ -48,6 +48,10 @@ class StorageService:
             ExpiresIn=expiry,
         )
 
+    def download_file(self, key: str, local_path: str) -> None:
+        """Download a file from S3/MinIO to a local path."""
+        self._client.download_file(self._bucket, key, local_path)
+
     def delete_prefix(self, prefix: str) -> int:
         """Delete all objects with the given prefix. Returns count of deleted objects."""
         count = 0
