@@ -228,3 +228,78 @@ async def test_dashboard_role_gate(test_client: TestClient, async_session):
         headers={"Authorization": f"Bearer {student_token}"},
     )
     assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_dashboard_endpoint_role_gate(test_client: TestClient, async_session):
+    """DASH-03: GET /courses/{id}/dashboard returns 403 for student role."""
+    from app.models.user import User
+    from sqlalchemy import select
+
+    # Create instructor + course
+    inst_id, inst_token = _make_instructor(test_client, "instructor_dashboard_gate@example.com")
+    result = await async_session.execute(select(User).where(User.id == uuid.UUID(inst_id)))
+    user = result.scalar_one()
+    user.role = "instructor"
+    await async_session.commit()
+
+    course_resp = test_client.post(
+        "/api/v1/courses",
+        json={"name": "Dashboard Gate Course"},
+        headers={"Authorization": f"Bearer {inst_token}"},
+    )
+    assert course_resp.status_code == 201
+    course_id = course_resp.json()["id"]
+
+    # Student tries to access dashboard — should get 403
+    student_token = _register_and_login(test_client, "student_dashboard_gate@example.com")
+    resp = test_client.get(
+        f"/api/v1/courses/{course_id}/dashboard",
+        headers={"Authorization": f"Bearer {student_token}"},
+    )
+    assert resp.status_code == 403, f"Expected 403 for student accessing dashboard, got {resp.status_code}: {resp.text}"
+
+
+@pytest.mark.asyncio
+async def test_dashboard_returns_student_progress(test_client: TestClient, async_session):
+    """DASH-03: GET /courses/{id}/dashboard returns students[] with progress info for instructor."""
+    from app.models.user import User
+    from sqlalchemy import select
+
+    inst_id, inst_token = _make_instructor(test_client, "instructor_dash_progress@example.com")
+    result = await async_session.execute(select(User).where(User.id == uuid.UUID(inst_id)))
+    user = result.scalar_one()
+    user.role = "instructor"
+    await async_session.commit()
+
+    course_resp = test_client.post(
+        "/api/v1/courses",
+        json={"name": "Progress Dashboard Course"},
+        headers={"Authorization": f"Bearer {inst_token}"},
+    )
+    assert course_resp.status_code == 201
+    course_id = course_resp.json()["id"]
+    enrollment_code = course_resp.json()["enrollment_code"]
+
+    # Enroll a student
+    student_token = _register_and_login(test_client, "student_progress@example.com")
+    test_client.post(
+        f"/api/v1/courses/{course_id}/enroll",
+        json={"enrollment_code": enrollment_code},
+        headers={"Authorization": f"Bearer {student_token}"},
+    )
+
+    # Instructor accesses dashboard
+    resp = test_client.get(
+        f"/api/v1/courses/{course_id}/dashboard",
+        headers={"Authorization": f"Bearer {inst_token}"},
+    )
+    assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.text}"
+    data = resp.json()
+    assert "students" in data, f"Response missing 'students' key: {data}"
+    assert "queue_info" in data, f"Response missing 'queue_info' key: {data}"
+    assert len(data["students"]) == 1, f"Expected 1 student, got {len(data['students'])}"
+    student_entry = data["students"][0]
+    assert "display_name" in student_entry
+    assert "run_count" in student_entry
+    assert "submission_status" in student_entry

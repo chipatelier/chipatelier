@@ -1,17 +1,22 @@
 """Course and enrollment endpoints.
 
 Routes:
-    POST   /courses                         — create course (instructor-only)
-    GET    /courses                         — list enrolled/taught courses
-    POST   /courses/{course_id}/enroll     — student enrolls via code
+    POST   /courses                             — create course (instructor-only)
+    GET    /courses                             — list enrolled/taught courses
+    POST   /courses/{course_id}/enroll         — student enrolls via code
+    GET    /courses/{course_id}/dashboard      — per-student progress (instructor-only)
+    GET    /courses/{course_id}/dashboard/export — CSV download (instructor-only)
 """
+import csv
+import io
 import secrets
 import string
 import uuid
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from fastapi.responses import StreamingResponse
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,6 +24,9 @@ from app.api.deps import get_current_user
 from app.core.database import get_db
 from app.models.course import Course
 from app.models.enrollment import CourseEnrollment
+from app.models.project import Project
+from app.models.run import Run
+from app.models.submission import Submission
 from app.models.user import User
 from app.schemas.courses import CourseCreate, CourseResponse, EnrollRequest, EnrollResponse
 
@@ -182,4 +190,173 @@ async def enroll_in_course(
         course_id=course.id,
         course_name=course.name,
         enrolled_at=enrollment.enrolled_at,
+    )
+
+
+# ---------------------------------------------------------------------------
+# GET /courses/{course_id}/dashboard — Instructor dashboard
+# ---------------------------------------------------------------------------
+
+@router.get("/{course_id}/dashboard")
+async def get_course_dashboard(
+    course_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    """Per-student progress dashboard for instructors.
+
+    Returns students[] with display_name, run_count, last_run_status,
+    submission_status, score — plus queue_info with queued/running counts.
+
+    Instructor role required (403 for students).
+    """
+    _require_instructor(user)
+
+    course = await db.get(Course, course_id)
+    if not course:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Course not found")
+
+    # Verify this instructor owns the course (or is admin)
+    if course.instructor_id != user.id and user.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+
+    # Fetch all enrolled students
+    enrollments_result = await db.execute(
+        select(CourseEnrollment, User)
+        .join(User, User.id == CourseEnrollment.user_id)
+        .where(CourseEnrollment.course_id == course_id)
+        .order_by(User.display_name)
+    )
+    enrollments = enrollments_result.all()
+
+    # Import Assignment model to get course assignment IDs (used to filter submissions)
+    from app.models.assignment import Assignment as AssignmentModel
+
+    course_assignment_ids_result = await db.execute(
+        select(AssignmentModel.id).where(AssignmentModel.course_id == course_id)
+    )
+    course_assignment_ids = [row[0] for row in course_assignment_ids_result.all()]
+
+    students = []
+    for enrollment, student in enrollments:
+        # Count runs for this student across all their projects
+        run_count_result = await db.execute(
+            select(func.count(Run.id))
+            .join(Project, Run.project_id == Project.id)
+            .where(Project.user_id == student.id)
+        )
+        run_count = run_count_result.scalar_one() or 0
+
+        # Get last run status across all student projects
+        last_run_result = await db.execute(
+            select(Run)
+            .join(Project, Run.project_id == Project.id)
+            .where(Project.user_id == student.id)
+            .order_by(Run.created_at.desc())
+            .limit(1)
+        )
+        last_run = last_run_result.scalar_one_or_none()
+        last_run_status = last_run.status if last_run else None
+
+        # Get best submission score for this course's assignments
+        if course_assignment_ids:
+            best_sub_result = await db.execute(
+                select(func.max(Submission.score))
+                .where(
+                    Submission.user_id == student.id,
+                    Submission.assignment_id.in_(course_assignment_ids),
+                )
+            )
+            best_score = best_sub_result.scalar_one_or_none()
+            sub_exists_result = await db.execute(
+                select(Submission)
+                .where(
+                    Submission.user_id == student.id,
+                    Submission.assignment_id.in_(course_assignment_ids),
+                )
+                .limit(1)
+            )
+        else:
+            best_score = None
+            sub_exists_result = None
+
+        has_submission = (
+            sub_exists_result is not None
+            and sub_exists_result.scalar_one_or_none() is not None
+        )
+        submission_status = "submitted" if has_submission else "not_submitted"
+
+        students.append({
+            "display_name": student.display_name or student.email,
+            "user_id": str(student.id),
+            "run_count": run_count,
+            "last_run_status": last_run_status,
+            "submission_status": submission_status,
+            "score": float(best_score) if best_score is not None else None,
+        })
+
+    # Queue depth — attempt Redis, fall back to 0 on error
+    queued = 0
+    running = 0
+    try:
+        from app.core.redis import get_redis_client
+        r = await get_redis_client()
+        queued = await r.llen("orfs_jobs") or 0
+    except Exception:
+        pass
+
+    return {
+        "students": students,
+        "queue_info": {"queued": int(queued), "running": int(running)},
+    }
+
+
+# ---------------------------------------------------------------------------
+# GET /courses/{course_id}/dashboard/export — CSV export
+# ---------------------------------------------------------------------------
+
+@router.get("/{course_id}/dashboard/export")
+async def export_course_dashboard_csv(
+    course_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> StreamingResponse:
+    """Export per-student results as a CSV file download.
+
+    Columns: student_display_name, submission_date, score.
+    Instructor role required (403 for students).
+    Content-Disposition: attachment header triggers browser download.
+    """
+    _require_instructor(user)
+
+    course = await db.get(Course, course_id)
+    if not course:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Course not found")
+
+    if course.instructor_id != user.id and user.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+
+    # Fetch all submissions for this course's assignments with user info
+    result = await db.execute(
+        select(Submission, User)
+        .join(User, User.id == Submission.user_id)
+        .order_by(User.display_name, Submission.submitted_at.desc())
+    )
+    rows = result.all()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["student_display_name", "submission_date", "score"])
+    for submission, student in rows:
+        writer.writerow([
+            student.display_name or student.email,
+            submission.submitted_at.isoformat() if submission.submitted_at else "",
+            submission.score if submission.score is not None else "",
+        ])
+    output.seek(0)
+
+    return StreamingResponse(
+        iter([output.read()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=grades-{course_id}.csv"},
     )

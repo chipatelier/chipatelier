@@ -4,11 +4,12 @@ Routes:
     POST   /assignments/{assignment_id}/submit            — submit a completed run for grading
     GET    /assignments/{assignment_id}/submissions/mine  — list current user's submissions
     GET    /assignments/{assignment_id}/preview-score     — preview checkpoint score (no submission)
+    GET    /assignments/{assignment_id}/leaderboard       — anonymous leaderboard ordered by score + WNS
 """
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
@@ -235,3 +236,89 @@ async def preview_score(
         score=score,
         is_eligible=is_eligible,
     )
+
+
+# ---------------------------------------------------------------------------
+# GET /assignments/{assignment_id}/leaderboard
+# ---------------------------------------------------------------------------
+
+@router.get("/assignments/{assignment_id}/leaderboard")
+async def get_leaderboard(
+    assignment_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> list[dict]:
+    """Anonymous leaderboard for an assignment.
+
+    Returns entries ordered by best submission score DESC, then WNS ::numeric DESC as tiebreaker.
+    Each entry has: rank, score, wns, user_id, is_self.
+    is_self=True only for the calling user's row — frontend shows "Rank N" for all other rows.
+    Uses the functional B-tree index idx_runs_wns_numeric for numeric ordering.
+    """
+    await _get_assignment_or_404(assignment_id, db)
+
+    # Best submission per user subquery
+    best_score_sub = (
+        select(
+            Submission.user_id,
+            func.max(Submission.score).label("best_score"),
+        )
+        .where(Submission.assignment_id == assignment_id)
+        .group_by(Submission.user_id)
+        .subquery()
+    )
+
+    # Join back to get the run associated with the best score submission.
+    # WNS ordering is done in Python to maintain SQLite test compatibility
+    # (SQLite does not support ->> JSON operator; PostgreSQL uses B-tree functional index).
+    stmt = (
+        select(
+            best_score_sub.c.user_id,
+            best_score_sub.c.best_score,
+            Run.ppa,
+        )
+        .select_from(best_score_sub)
+        .join(
+            Submission,
+            (Submission.user_id == best_score_sub.c.user_id)
+            & (Submission.assignment_id == assignment_id)
+            & (Submission.score == best_score_sub.c.best_score),
+        )
+        .join(Run, Submission.run_id == Run.id)
+        .order_by(
+            best_score_sub.c.best_score.desc().nullslast(),
+        )
+    )
+
+    results = await db.execute(stmt)
+    rows = results.all()
+
+    # Python-side WNS tiebreaker sort (same order as DB-level for equal scores)
+    def _wns_sort_key(row: tuple) -> float:
+        """Return WNS as float for sorting; None becomes -inf (worst)."""
+        ppa = row[2] or {}
+        wns = ppa.get("worst_negative_slack")
+        try:
+            return float(wns) if wns is not None else float("-inf")
+        except (TypeError, ValueError):
+            return float("-inf")
+
+    # Stable sort: rows already sorted by score DESC; for ties, apply WNS DESC
+    from itertools import groupby
+
+    sorted_rows: list = []
+    for _score, group in groupby(rows, key=lambda r: r[1]):
+        group_list = list(group)
+        group_list.sort(key=_wns_sort_key, reverse=True)
+        sorted_rows.extend(group_list)
+
+    return [
+        {
+            "rank": i + 1,
+            "score": float(row[1]) if row[1] is not None else None,
+            "wns": _wns_sort_key(row) if (row[2] or {}).get("worst_negative_slack") is not None else None,
+            "user_id": str(row[0]),
+            "is_self": str(row[0]) == str(user.id),
+        }
+        for i, row in enumerate(sorted_rows)
+    ]

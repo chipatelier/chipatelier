@@ -365,13 +365,176 @@ async def test_submit_run_not_complete(test_client: TestClient, async_session):
     assert resp.status_code == 400, f"Expected 400 for non-complete run, got {resp.status_code}: {resp.text}"
 
 
-@pytest.mark.skip(reason="Implemented in plan 02-06 (leaderboard)")
-def test_leaderboard_order():
-    """DASH-01: Leaderboard returns submissions ordered by score descending."""
-    ...
+@pytest.mark.asyncio
+async def test_leaderboard_order(test_client: TestClient, async_session):
+    """DASH-01: Leaderboard returns submissions ordered by score DESC, WNS numeric DESC as tiebreaker."""
+    from app.models.project import Project
+    from app.models.run import Run
+    from app.models.user import User
+
+    inst_id, inst_token, course_id, code = await _create_instructor_and_course(
+        test_client, async_session, "inst_leaderboard_order@example.com"
+    )
+
+    # Create assignment with scored rules
+    resp = test_client.post(
+        f"/api/v1/courses/{course_id}/assignments",
+        json={
+            "title": "Leaderboard Order Lab",
+            "locked_params": {},
+            "checkpoint_rules": {
+                "hard": [],
+                "scored": [{"metric": "worst_negative_slack", "op": "gte", "value": -0.5, "points": 100}],
+            },
+        },
+        headers={"Authorization": f"Bearer {inst_token}"},
+    )
+    assert resp.status_code == 201, f"Assignment creation failed: {resp.text}"
+    assignment_id = resp.json()["id"]
+    test_client.patch(
+        f"/api/v1/assignments/{assignment_id}/open",
+        json={"is_open": True},
+        headers={"Authorization": f"Bearer {inst_token}"},
+    )
+
+    # Create 3 students with submissions: scores [95, 80, 80] and WNS [-0.05, -0.1, -0.2]
+    async def create_student_submission(email: str, score: float, wns: float) -> str:
+        """Create student, run, and submission directly in DB. Returns student_id."""
+        token = _register_and_login(test_client, email)
+        me = test_client.get("/api/v1/users/me", headers={"Authorization": f"Bearer {token}"})
+        student_id = me.json()["id"]
+
+        test_client.post(
+            f"/api/v1/courses/{course_id}/enroll",
+            json={"enrollment_code": code},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+        project = Project(user_id=uuid.UUID(student_id), name="P", pdk="sky130hd")
+        async_session.add(project)
+        await async_session.flush()
+
+        run = Run(
+            project_id=project.id,
+            status="complete",
+            ppa={"worst_negative_slack": wns, "drc_violations": 0},
+            config={},
+        )
+        async_session.add(run)
+        await async_session.flush()
+
+        from app.models.submission import Submission as Sub
+        sub = Sub(
+            assignment_id=uuid.UUID(assignment_id),
+            user_id=uuid.UUID(student_id),
+            run_id=run.id,
+            score=score,
+            grading_status="complete",
+        )
+        async_session.add(sub)
+        await async_session.commit()
+        return student_id
+
+    student1_id = await create_student_submission("student_lb1@example.com", 95.0, -0.05)
+    student2_id = await create_student_submission("student_lb2@example.com", 80.0, -0.1)
+    student3_id = await create_student_submission("student_lb3@example.com", 80.0, -0.2)
+
+    # Call leaderboard as student1
+    token1 = test_client.post("/api/v1/auth/login", json={"email": "student_lb1@example.com", "password": "securepass1"}).json()["access_token"]
+    lb_resp = test_client.get(
+        f"/api/v1/assignments/{assignment_id}/leaderboard",
+        headers={"Authorization": f"Bearer {token1}"},
+    )
+    assert lb_resp.status_code == 200, f"Expected 200, got {lb_resp.status_code}: {lb_resp.text}"
+    entries = lb_resp.json()
+    assert len(entries) == 3, f"Expected 3 entries, got {len(entries)}"
+
+    # rank1 = score 95
+    assert entries[0]["rank"] == 1
+    assert entries[0]["score"] == 95.0
+    # rank2 = score 80 with WNS -0.1 (better than -0.2)
+    assert entries[1]["rank"] == 2
+    assert entries[1]["score"] == 80.0
+    # rank3 = score 80 with WNS -0.2 (worse)
+    assert entries[2]["rank"] == 3
+    assert entries[2]["score"] == 80.0
+    # Verify WNS ordering: rank2 WNS should be greater than rank3 WNS (-0.1 > -0.2)
+    wns2 = float(entries[1]["wns"])
+    wns3 = float(entries[2]["wns"])
+    assert wns2 > wns3, f"Expected rank2 WNS ({wns2}) > rank3 WNS ({wns3})"
 
 
-@pytest.mark.skip(reason="Implemented in plan 02-06 (leaderboard)")
-def test_leaderboard_anonymity():
-    """DASH-01: Leaderboard response does not include student names or emails."""
-    ...
+@pytest.mark.asyncio
+async def test_leaderboard_anonymity(test_client: TestClient, async_session):
+    """DASH-01: Leaderboard is_self=True for caller, is_self=False for all others."""
+    from app.models.project import Project
+    from app.models.run import Run
+    from app.models.submission import Submission as Sub
+
+    inst_id, inst_token, course_id, code = await _create_instructor_and_course(
+        test_client, async_session, "inst_leaderboard_anon@example.com"
+    )
+
+    resp = test_client.post(
+        f"/api/v1/courses/{course_id}/assignments",
+        json={
+            "title": "Anon Lab",
+            "locked_params": {},
+            "checkpoint_rules": {"hard": [], "scored": []},
+        },
+        headers={"Authorization": f"Bearer {inst_token}"},
+    )
+    assignment_id = resp.json()["id"]
+    test_client.patch(
+        f"/api/v1/assignments/{assignment_id}/open",
+        json={"is_open": True},
+        headers={"Authorization": f"Bearer {inst_token}"},
+    )
+
+    # Create 2 students with submissions
+    async def make_student_sub(email: str, score: float) -> tuple[str, str]:
+        token = _register_and_login(test_client, email)
+        me = test_client.get("/api/v1/users/me", headers={"Authorization": f"Bearer {token}"})
+        student_id = me.json()["id"]
+        test_client.post(
+            f"/api/v1/courses/{course_id}/enroll",
+            json={"enrollment_code": code},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        project = Project(user_id=uuid.UUID(student_id), name="P", pdk="sky130hd")
+        async_session.add(project)
+        await async_session.flush()
+        run = Run(project_id=project.id, status="complete", ppa={}, config={})
+        async_session.add(run)
+        await async_session.flush()
+        sub = Sub(
+            assignment_id=uuid.UUID(assignment_id),
+            user_id=uuid.UUID(student_id),
+            run_id=run.id,
+            score=score,
+            grading_status="complete",
+        )
+        async_session.add(sub)
+        await async_session.commit()
+        return student_id, token
+
+    student1_id, token1 = await make_student_sub("student_anon1@example.com", 80.0)
+    student2_id, token2 = await make_student_sub("student_anon2@example.com", 70.0)
+
+    # Call leaderboard as student2 — their row should have is_self=True
+    lb_resp = test_client.get(
+        f"/api/v1/assignments/{assignment_id}/leaderboard",
+        headers={"Authorization": f"Bearer {token2}"},
+    )
+    assert lb_resp.status_code == 200, f"Expected 200, got {lb_resp.status_code}: {lb_resp.text}"
+    entries = lb_resp.json()
+    assert len(entries) == 2
+
+    # Find student2's entry
+    self_entries = [e for e in entries if e["is_self"]]
+    other_entries = [e for e in entries if not e["is_self"]]
+    assert len(self_entries) == 1, f"Expected exactly 1 is_self=True entry, got {len(self_entries)}"
+    assert len(other_entries) == 1, f"Expected exactly 1 is_self=False entry, got {len(other_entries)}"
+    # The self entry should be student2 (score 70)
+    assert self_entries[0]["user_id"] == student2_id
+    assert self_entries[0]["score"] == 70.0
