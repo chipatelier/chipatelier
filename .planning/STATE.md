@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 02-07-PLAN.md (Leaderboard WNS DB-level ORDER BY gap closure)
-last_updated: "2026-03-15T22:16:14.852Z"
+stopped_at: Completed 01-09-PLAN.md (ORFS invocation and metrics key gap closure)
+last_updated: "2026-03-16T21:55:19.987Z"
 last_activity: "2026-03-15 — Completed 02-01: Alembic migration 0003, 4 ORM models, 19 test stubs"
 progress:
   total_phases: 3
   completed_phases: 2
-  total_plans: 15
-  completed_plans: 15
+  total_plans: 16
+  completed_plans: 16
 ---
 
 # Project State
@@ -56,6 +56,7 @@ Progress: [████████████████████] 8/8 pla
 | Phase 02-learning-layer P05 | 12 | 2 tasks | 8 files |
 | Phase 02-learning-layer P06 | 17 | 2 tasks | 14 files |
 | Phase 02-learning-layer P07 | 2 | 2 tasks | 2 files |
+| Phase 01 P09 | 15 | 5 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -113,6 +114,11 @@ Recent decisions affecting current work:
 - [Phase 02-learning-layer]: CSV export uses io.StringIO + StreamingResponse single-batch pattern; sufficient for class-size datasets (50-300 rows)
 - [Phase 02-learning-layer]: Dialect detection uses settings.DATABASE_URL check (not db.bind introspection) — async session bind may be None; settings is always available
 - [Phase 02-learning-layer]: Leaderboard WNS SQL text() ORDER BY guarded by is_postgres; Python sort preserved as SQLite fallback — closes DASH-01 gap
+- [Phase 01]: WORK_HOME=/workspace added to Make invocation — without it all ORFS output goes to read-only flow dir
+- [Phase 01]: Stage detection via flow.sh 'Running *.tcl, stage' pattern — content-based patterns were unreliable
+- [Phase 01]: GRT failure via glob for 5_1_grt-failed.odb — exit code 0 does not guarantee GRT success
+- [Phase 01]: WNS: finish__timing__setup__ws primary, globalroute__timing__setup__ws fallback — route__ prefix does not exist
+- [Phase 01]: DRC: detailedroute__route__drc_errors — finish__design__violations does not exist in real ORFS output
 
 ### Pending Todos
 
@@ -132,6 +138,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-15T22:16:14.848Z
-Stopped at: Completed 02-07-PLAN.md (Leaderboard WNS DB-level ORDER BY gap closure)
+Last session: 2026-03-16T21:55:19.983Z
+Stopped at: Completed 01-09-PLAN.md (ORFS invocation and metrics key gap closure)
 Resume file: None
