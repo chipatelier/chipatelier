@@ -276,7 +276,9 @@ VNC_TOKEN_SECRET=change_me_in_production
 
 # OpenROAD
 ORFS_IMAGE=openroad/orfs:latest
-PDK_ROOT=/data/pdks
+# NOTE: PDK_ROOT is NOT used by ORFS — it is an OpenLane variable. Do not add it here.
+# Platform files (sky130hd, gf180, asap7) are bundled inside the openroad/orfs image
+# at /OpenROAD-flow-scripts/flow/platforms/. No external PDK mount is needed.
 ARTIFACTS_ROOT=/data/artifacts
 WARM_POOL_SIZE=4
 MAX_CONCURRENT_JOBS=12
@@ -316,15 +318,17 @@ worker every 30 seconds. If heartbeat stops for > 2 minutes, job is requeued.
 
 ---
 
-## ORFS Flow Invocation (Corrected)
+## ORFS Flow Invocation
 
 ORFS is a **Make-based framework**. The worker wraps `make`, not a Python/Tcl API directly.
 
 ```bash
 # Primary invocation inside the ORFS container:
-cd /workspace
+# WORK_HOME redirects ALL output (results/, logs/, reports/, objects/) to /workspace.
+# Without WORK_HOME, output goes relative to the make working directory — not /workspace.
 make --file=/OpenROAD-flow-scripts/flow/Makefile \
      DESIGN_CONFIG=/workspace/config.mk \
+     WORK_HOME=/workspace \
      [TARGET]
 
 # Stage targets (cumulative — runs up to and including this stage):
@@ -334,22 +338,34 @@ make place        # up to placement     → results/.../3_place.odb
 make cts          # up to CTS           → results/.../4_cts.odb
 make route        # up to routing       → results/.../5_route.odb
 make finish       # full flow to GDS    → results/.../6_final.gds
+# 'final' is an alias for 'finish'. 'grt'/'globalroute' runs only GRT sub-step.
 
 # Clean individual stages (enables re-run from that stage):
 make clean_synth | clean_floorplan | clean_place | clean_cts | clean_route | clean_finish
 # Pattern for re-run from a stage:
-make clean_route && make route
+make clean_route && make DESIGN_CONFIG=... WORK_HOME=/workspace route
+# NOTE: clean_route also removes route.guide and output_guide.mod
 
 # GUI targets — open OpenROAD Qt GUI with stage ODB pre-loaded:
 make gui_floorplan | gui_place | gui_cts | gui_route | gui_final
 
-# Locking parameters via command-line override (ignores config.mk value):
-make CLOCK_PERIOD=10 PLATFORM=sky130hd DESIGN_CONFIG=...
+# Locking parameters via command-line override (highest priority — ignores config.mk):
+make --file=... DESIGN_CONFIG=... WORK_HOME=/workspace \
+     CLOCK_PERIOD=10 PLATFORM=sky130hd route
 ```
 
-**Results directory** (relative to Make working directory):
+**`DESIGN_HOME` and `DESIGN_NICKNAME` are valid ORFS variables:**
+- `DESIGN_HOME` defaults to `/OpenROAD-flow-scripts/flow/designs` — root for design source files
+- `DESIGN_NICKNAME` defaults to `DESIGN_NAME` — controls output subdirectory name
+- For student workspaces use absolute paths in config.mk instead of relying on DESIGN_HOME:
+  ```makefile
+  export VERILOG_FILES = /workspace/src/mydesign.v
+  export SDC_FILE      = /workspace/constraint.sdc
+  ```
+
+**Results directory** (all paths relative to `WORK_HOME`, i.e. `/workspace`):
 ```
-results/{PLATFORM}/{DESIGN}/base/
+results/{PLATFORM}/{DESIGN_NICKNAME}/base/
   1_synth.v              # gate-level netlist (Yosys output)
   1_synth.sdc            # post-synthesis timing constraints
   1_synth.odb            # OpenDB binary — synthesis→floorplan handoff
@@ -363,23 +379,44 @@ results/{PLATFORM}/{DESIGN}/base/
   6_final.v              # final netlist with physical cells
   6_final.sdc
 
-logs/{PLATFORM}/{DESIGN}/base/
-  1_1_yosys.log
+logs/{PLATFORM}/{DESIGN_NICKNAME}/base/
+  1_1_yosys_canonicalize.log
+  1_2_yosys.log
+  1_2_yosys.json              # synthesis metrics
   2_1_floorplan.log
-  2_1_floorplan.json     # per-stage metrics JSON ← parse this
-  3_1_place.json
-  4_cts.json
-  5_1_grt.json           # global route metrics
-  6_report.json          # final signoff metrics
+  2_1_floorplan.json          # floorplan metrics (keys: floorplan__*)
+  3_1_place_gp_skip_io.json
+  3_3_place_gp.json           # global placement metrics (keys: globalplace__*)
+  3_4_place_resized.json      # post-resize metrics (keys: placeopt__*)
+  3_5_place_dp.json           # detail placement metrics (keys: detailedplace__*)
+  4_1_cts.log
+  4_1_cts.json                # CTS metrics (keys: cts__*)
+  5_1_grt.log
+  5_1_grt.json                # global route metrics (keys: globalroute__*)
+  5_2_route.json              # detail route metrics (keys: detailedroute__*)
+  5_3_fillcell.json
+  6_report.log
+  6_report.json               # ← FINAL SIGNOFF METRICS (keys: finish__*)
 
-reports/{PLATFORM}/{DESIGN}/base/
+  # GRT failure indicator — present when global route fails with congestion:
+  # 5_1_grt-failed.odb written instead of 5_1_grt.odb; exit code may still be 0
+  # MUST check for this file in addition to exit code to detect GRT congestion failure
+
+reports/{PLATFORM}/{DESIGN_NICKNAME}/base/
   final_all.webp         # ← ORFS auto-generates these — no KLayout work needed
   final_routing.webp
   final_placement.webp
   final_clocks.webp
   final_ir_drop.webp
   final_congestion.webp  # congestion heatmap — free, use directly as stage preview
+  final_resizer.webp
+  final_worst_path.webp
+  cts_{clock}_layout.webp  # one per clock domain
 ```
+
+**genMetrics.py** — ORFS ships a utility at `flow/util/genMetrics.py` that merges all
+per-stage JSON files into a single `metadata.json`. Use this after job completion to
+get a unified metrics dict instead of reading individual stage files manually.
 
 **CRITICAL: The primary artifact format is `.odb` not `.def`.**
 ODB is OpenROAD's binary database. DEF is only written at finish.
@@ -391,20 +428,52 @@ All intermediate stage inspection loads `.odb` files.
 # Docker run flags for ORFS job container:
 docker run \
   --name orfs_job_{run_id} \
-  --network none \                     # CRITICAL: no internet access
-  --cpus {JOB_CPU_CORES} \
+  --network none \                     # CRITICAL: no internet access; ORFS needs none
+  --cpus {JOB_CPU_CORES} \            # nproc inside container respects this; OpenROAD auto-threads
   --memory {JOB_RAM_GB}g \
   --memory-swap {JOB_RAM_GB}g \        # No swap
-  --user orfs:orfs \
   --cap-drop ALL \
   --security-opt no-new-privileges \
-  -v {workspace}:/workspace:rw \       # student workspace
-  -v {pdk_root}:/pdks:ro \             # PDKs read-only
-  --storage-opt size={JOB_DISK_GB}G \
+  -v {workspace}:/workspace:rw \       # student workspace (results/logs/reports written here)
+  --tmpfs /tmp:size=2g \               # Yosys uses /tmp during synthesis; 2g safe for small designs
   openroad/orfs:{version} \
-  bash -c "cd /workspace && make --file=/OpenROAD-flow-scripts/flow/Makefile \
-           DESIGN_CONFIG=/workspace/config.mk {target}"
+  make --file=/OpenROAD-flow-scripts/flow/Makefile \
+       DESIGN_CONFIG=/workspace/config.mk \
+       WORK_HOME=/workspace \
+       {target}
 ```
+
+**Container user notes:**
+- The `openroad/orfs` image runs as **root by default** (no USER directive in Dockerfile)
+- The image does `chmod o+rw -R /OpenROAD-flow-scripts` — world-writable installation dir
+- Running as a non-root user (e.g. `--user 1000:1000`) is safe as long as the workspace
+  volume is writable by that UID
+- Do NOT use `--read-only` on the container root — OpenROAD may write temp files outside
+  WORK_HOME; security is provided by `--network none` + cgroup limits instead
+
+**PDK notes:**
+- Do NOT mount an external PDK volume. The `openroad/orfs` image contains all platform
+  files for sky130hd, gf180, and asap7 at `/OpenROAD-flow-scripts/flow/platforms/`
+- `PDK_ROOT` is an OpenLane variable — it is NOT used by ORFS. Remove it from invocations.
+- Platform config is auto-loaded via `PLATFORM_DIR=$(FLOW_HOME)/platforms/$(PLATFORM)`
+
+**Memory estimates (sky130hd, small design like GCD):**
+
+| Stage | Peak RAM |
+|-------|----------|
+| synth (yosys) | ~200–400 MB |
+| floorplan | ~400–600 MB |
+| place | ~600 MB–1 GB |
+| cts | ~500–700 MB |
+| route (GRT+DRT) | ~1–2 GB |
+| finish | ~500 MB–1 GB |
+
+For larger designs (picorv32, ibex), routing can peak at 4–8 GB. Set `JOB_RAM_GB`
+based on the largest design students are expected to run.
+
+**storage-opt note:** `--storage-opt size=Xg` requires overlay2 + `pquota` mount on
+RHEL/Rocky 9. Until that is configured, enforce disk at the OS level (filesystem quotas
+on the workspace directory).
 
 Always cleaned up in finally block — no orphaned containers.
 
@@ -464,49 +533,124 @@ FastAPI WebSocket endpoint:
   → Push each line to browser (xterm.js)
 ```
 
+**Real ORFS log format** — OpenROAD uses structured log prefixes:
+```
+[INFO  <TOOL>-<NUM>] message
+[WARNING <TOOL>-<NUM>] message
+[ERROR <TOOL>-<NUM>] message
+```
+Common tool codes: `FLW` (flow), `FP` (floorplan), `GPL` (global place), `DPL` (detail place),
+`CTS`, `GRT` (global route), `DRT` (detail route), `ORD` (OpenROAD core), `ODB` (OpenDB).
+
+**Reliable stage transition detection** — `flow.sh` prints this line before every stage:
+```
+Running <script>.tcl, stage <stage_id>
+```
+Examples:
+```
+Running floorplan.tcl, stage 2_1_floorplan
+Running cts.tcl, stage 4_1_cts
+Running global_route.tcl, stage 5_1_grt
+Running final_report.tcl, stage 6_report
+```
+Parse this pattern instead of guessing content-based patterns. The `stage_id` field maps
+directly to the JSON metrics filename (e.g., `stage 2_1_floorplan` → `2_1_floorplan.json`).
+
+**GRT failure detection** — global route can fail with congestion but exit 0:
+- Failure writes `results/.../5_1_grt-failed.odb` instead of `5_1_grt.odb`
+- Check for the `-failed.odb` suffix in results dir to detect GRT congestion failure
+- Subsequent `detail_route` step will then fail with non-zero exit code
+
 ---
 
-## Real ORFS Metrics Schema (Corrected)
+## Real ORFS Metrics Schema
 
-ORFS writes per-stage JSON files in `logs/{platform}/{design}/base/`.
-The naming convention is `{stage}__{category}__{metric}` — NOT our original schema.
+ORFS writes per-stage JSON files in `logs/{platform}/{design}/base/` via the `-metrics`
+flag passed to each OpenROAD invocation. Keys follow `{stage_prefix}__{category}__{metric}`.
+
+**Stage prefix mapping** (file name → JSON key prefix):
+
+| Log file | JSON key prefix | Written by |
+|----------|-----------------|------------|
+| `2_1_floorplan.json` | `floorplan__` | `floorplan.tcl` |
+| `3_3_place_gp.json` | `globalplace__` | `global_place.tcl` |
+| `3_4_place_resized.json` | `placeopt__` | `resize.tcl` |
+| `3_5_place_dp.json` | `detailedplace__` | `detail_place.tcl` |
+| `4_1_cts.json` | `cts__` | `cts.tcl` |
+| `5_1_grt.json` | `globalroute__` | `global_route.tcl` |
+| `5_2_route.json` | `detailedroute__` | `detail_route.tcl` |
+| `6_report.json` | `finish__` | `final_report.tcl` ← primary signoff |
+
+**Verified real key names** (from `flow/designs/ihp-sg13g2/i2c-gpio-expander/metadata-base-ok.json`):
 
 ```json
-// Example: logs/sky130hd/gcd/base/2_1_floorplan.json
 {
-  "floorplan__timing__setup__tns": 0,
   "floorplan__timing__setup__ws": 0.0148687,
-  "floorplan__timing__hold__tns": 0,
+  "floorplan__timing__setup__tns": 0,
   "floorplan__timing__hold__ws": 0.0997134,
-  "floorplan__power__internal__total": 0.00120063,
-  "floorplan__power__switching__total": 0.000809229,
-  "floorplan__power__leakage__total": 1.46085e-05,
+  "floorplan__timing__hold__tns": 0,
   "floorplan__power__total": 0.00202447,
   "floorplan__design__die__area": 1262.03,
   "floorplan__design__core__area": 1070.65,
   "floorplan__design__instance__count": 499,
   "floorplan__design__instance__utilization": 0.577391,
-  "floorplan__design__io": 54
+  "floorplan__design__io": 54,
+
+  "cts__timing__setup__ws": -2.27,
+  "cts__timing__setup__tns": -95.5,
+  "cts__timing__hold__ws": -0.055,
+  "cts__timing__hold__tns": -0.22,
+  "cts__design__violations": 0,
+
+  "globalroute__timing__setup__ws": -2.42,
+  "globalroute__timing__setup__tns": -99.7,
+
+  "detailedroute__route__drc_errors": 0,
+  "detailedroute__route__wirelength": 37033,
+  "detailedplace__design__violations": 0,
+
+  "finish__timing__setup__ws": 3.88761,
+  "finish__timing__setup__tns": 0,
+  "finish__timing__hold__ws": 0.033864,
+  "finish__timing__hold__tns": 0,
+  "finish__power__total": 7.30843e-05,
+  "finish__power__internal__total": 5.79117e-05,
+  "finish__power__switching__total": 1.32977e-05,
+  "finish__power__leakage__total": 1.87494e-06,
+  "finish__design__instance__area": 118272
 }
 ```
 
 The metrics parser must:
-1. Collect all per-stage JSON files after job completion
-2. Merge into a unified dict keyed by stage prefix
-3. Store merged dict as JSONB in PostgreSQL `runs.metrics` column
-4. Map to friendly names for UI display:
+1. Run `flow/util/genMetrics.py` after job completion to merge all per-stage JSON files
+   into a single `metadata.json` (or read and merge the individual files manually)
+2. Store merged dict as JSONB in PostgreSQL `runs.stage_metrics` column
+3. Map to friendly names for `runs.ppa` column:
 
 ```python
 METRIC_MAP = {
-    "worst_negative_slack": lambda m: m.get("route__timing__setup__ws",
-                                   m.get("finish__timing__setup__ws", None)),
-    "total_negative_slack": lambda m: m.get("route__timing__setup__tns", None),
+    # Final signoff WNS/TNS come from 6_report.json (finish__ prefix)
+    # Fall back to globalroute if finish not yet written (partial run)
+    "worst_negative_slack": lambda m: m.get("finish__timing__setup__ws",
+                                   m.get("globalroute__timing__setup__ws", None)),
+    "total_negative_slack": lambda m: m.get("finish__timing__setup__tns",
+                                   m.get("globalroute__timing__setup__tns", None)),
     "core_utilization":     lambda m: m.get("floorplan__design__instance__utilization", None),
-    "drc_violations":       lambda m: m.get("finish__design__violations", 0),
+    # DRC routing errors — from detailed route, NOT "finish__design__violations" (that key doesn't exist)
+    "drc_routing_errors":   lambda m: m.get("detailedroute__route__drc_errors", 0),
+    # Placement violations are separate from routing DRC
+    "placement_violations": lambda m: m.get("detailedplace__design__violations", 0),
     "total_power":          lambda m: m.get("finish__power__total", None),
     "die_area":             lambda m: m.get("floorplan__design__die__area", None),
+    "core_area":            lambda m: m.get("floorplan__design__core__area", None),
+    "wirelength":           lambda m: m.get("detailedroute__route__wirelength", None),
 }
 ```
+
+**CRITICAL: `finish__design__violations` does not exist in real ORFS output.**
+DRC routing errors = `detailedroute__route__drc_errors`. Placement violations =
+`detailedplace__design__violations`. KLayout DRC (from `make drc`) writes a text
+report `reports/6_drc_count.rpt` — not a JSON key.
 
 ## Checkpoint Evaluation
 
