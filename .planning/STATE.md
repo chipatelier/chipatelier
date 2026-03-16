@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 03-ai-assistance/03-02-PLAN.md
-last_updated: "2026-03-16T23:38:08.227Z"
+stopped_at: Completed 03-ai-assistance/03-03-PLAN.md
+last_updated: "2026-03-16T23:49:37.019Z"
 last_activity: "2026-03-15 — Completed 02-01: Alembic migration 0003, 4 ORM models, 19 test stubs"
 progress:
   total_phases: 3
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 19
-  completed_plans: 18
+  completed_plans: 19
 ---
 
 # Project State
@@ -59,6 +59,7 @@ Progress: [████████████████████] 8/8 pla
 | Phase 01 P09 | 15 | 5 tasks | 6 files |
 | Phase 03-ai-assistance P01 | 563 | 2 tasks | 14 files |
 | Phase 03-ai-assistance P02 | 10 | 2 tasks | 15 files |
+| Phase 03-ai-assistance P03 | 25 | 2 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -125,6 +126,7 @@ Recent decisions affecting current work:
 - [Phase 03-ai-assistance]: test_client fixture patches app.ai.llm_client.get_llm_client (local import in lifespan body) to mock warm_up(); prevents 15s test timeout when Ollama unavailable
 - [Phase 03-ai-assistance]: safe_generate catches httpx errors and ollama module errors by module name; other exceptions propagate
 - [Phase 03-ai-assistance]: AiExplainPanel fetches on mount (cache miss), not on user click — panel visible immediately after Explain toggle
+- [Phase 03-ai-assistance]: Chat NDJSON: StreamingResponse with async generator; X-Accel-Buffering no for nginx; think-tag stripped in backend via state machine; history[-20:] enforces 10-turn cap; streamChat as async generator in api/ai.ts; TAB_LABELS map decouples tab key from display label
 
 ### Pending Todos
 
@@ -144,6 +146,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-16T23:38:08.223Z
-Stopped at: Completed 03-ai-assistance/03-02-PLAN.md
+Last session: 2026-03-16T23:49:37.014Z
+Stopped at: Completed 03-ai-assistance/03-03-PLAN.md
 Resume file: None
