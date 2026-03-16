@@ -6,19 +6,22 @@ Routes:
   POST /ai/explain/timing   — explain timing path violations
   POST /ai/explain/drc      — explain DRC violations
   POST /ai/advisor/config   — suggest config parameter improvements
-  POST /ai/chat             — context-aware multi-turn chat (Plan 03 — 501 now)
+  POST /ai/chat             — context-aware multi-turn chat (NDJSON streaming)
 
 Privacy constraint (CLAUDE.md):
   NEVER send GDS/DEF file contents, PDK files, or student PII to cloud LLMs.
   context_builder.py enforces this by only including log_tail, ppa, and config.
 
 Phase 3 (Plan 02): explain + advisor endpoints wired to Ollama via llm_client.
-Phase 3 (Plan 03): chat endpoint wired.
+Phase 3 (Plan 03): chat endpoint wired with NDJSON streaming.
 """
+import json
+import re
 from uuid import UUID
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -178,10 +181,80 @@ async def advisor_config(
 
 
 # ---------------------------------------------------------------------------
-# Chat endpoint (Plan 03 — stub)
+# Chat endpoint (Plan 03 — streaming NDJSON)
 # ---------------------------------------------------------------------------
 
 @router.post("/chat")
-async def chat(body: ChatRequest, _=Depends(get_current_user)):
-    """Context-aware multi-turn chat. (Plan 03 — returns 501 now)"""
-    raise HTTPException(status_code=501, detail=_NOT_IMPLEMENTED_MSG)
+async def chat(
+    body: ChatRequest,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Context-aware multi-turn chat with NDJSON streaming."""
+    run = await _get_run(body.run_id, db)
+    redis = await get_redis()
+    ctx = await build_run_context(run, redis, log_lines=50)
+
+    # Build system prompt with run context
+    system_content = (
+        f"You are an expert ASIC design engineer helping a university student "
+        f"with their OpenROAD ORFS run.\n"
+        f"Design: {ctx['design_name']}, PDK: sky130hd\n"
+        f"Stage completed: {ctx.get('stage_completed', 'none')}, "
+        f"Status: {ctx['status']}\n"
+        f"PPA: WNS={ctx['ppa'].get('worst_negative_slack', 'N/A')}, "
+        f"TNS={ctx['ppa'].get('total_negative_slack', 'N/A')}, "
+        f"DRC={ctx['ppa'].get('drc_routing_errors', 'N/A')}\n"
+        f"Config: {json.dumps(ctx.get('config', {}))}\n\n"
+        f"Last {len(ctx['log_tail'])} lines of ORFS log:\n"
+        + "\n".join(ctx["log_tail"][-30:])
+        + "\n\nBe helpful, concise, and specific. Explain for a university student. "
+        "Never mention student names, email addresses, or file system paths."
+    )
+
+    # Build messages: system + last 10 turns of history + current message
+    messages = [{"role": "system", "content": system_content}]
+    history_turns = body.history[-20:]  # 10 turns = 20 messages (user+assistant pairs)
+    for msg in history_turns:
+        messages.append({"role": msg["role"], "content": msg["content"]})
+    messages.append({"role": "user", "content": body.message})
+
+    llm = get_llm_client()
+
+    async def generate_stream():
+        try:
+            stream = await llm.chat_stream(messages)
+            in_think = False
+            think_buf = ""
+            async for chunk in stream:
+                token = chunk.get("message", {}).get("content", "")
+                if not token:
+                    continue
+                # Strip <think>...</think> tags from streaming output
+                # Buffer tokens that might be part of <think> tags
+                if "<think>" in token or in_think:
+                    in_think = True
+                    think_buf += token
+                    if "</think>" in think_buf:
+                        # Remove the think block and yield remaining
+                        cleaned = re.sub(r"<think>.*?</think>", "", think_buf, flags=re.DOTALL)
+                        if cleaned.strip():
+                            yield json.dumps({"token": cleaned}) + "\n"
+                        in_think = False
+                        think_buf = ""
+                    continue
+                yield json.dumps({"token": token}) + "\n"
+            # Flush any remaining think buffer (incomplete tag)
+            if think_buf:
+                cleaned = re.sub(r"<think>.*?</think>", "", think_buf, flags=re.DOTALL)
+                if cleaned.strip():
+                    yield json.dumps({"token": cleaned}) + "\n"
+            yield json.dumps({"done": True}) + "\n"
+        except Exception:
+            yield json.dumps({"error": "AI assistant is currently unavailable. Contact your instructor if this persists."}) + "\n"
+
+    return StreamingResponse(
+        generate_stream(),
+        media_type="application/x-ndjson",
+        headers={"X-Accel-Buffering": "no"},
+    )
