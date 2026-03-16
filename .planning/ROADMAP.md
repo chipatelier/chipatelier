@@ -75,12 +75,12 @@ Plans:
   1. User can request a plain-language explanation of ORFS log errors from a failed stage; the response arrives from local Ollama inference and never sends GDS/DEF or student PII to any cloud service
   2. User can request config parameter suggestions (CLOCK_PERIOD, CORE_UTILIZATION, etc.) based on their current run's PPA metrics; suggestions reference specific values from the run
   3. User can chat with an AI assistant that has context of their current run (log excerpts, PPA metrics, config snapshot) and receive coherent multi-turn answers; Ollama model is warmed on service startup to avoid first-request hang
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 03-01: AI service foundation — Ollama integration, context builder (log + metrics + config injection), prompt templates, model warm-on-startup, pluggable LLM client (Ollama / Anthropic / OpenAI)
-- [ ] 03-02: Log explainer and config advisor — /explain/log endpoint, /explain/timing, /explain/drc, /advisor/config endpoint with PPA-aware suggestions
-- [ ] 03-03: Context-aware chat — /chat endpoint, multi-turn context window management, frontend chat UI with run context panel
+- [ ] 03-01-PLAN.md — AI service foundation: OllamaClient implementation (generate, chat_stream, warm_up with 3-retry), prompt templates (explain_log/timing/drc, advisor_config), OLLAMA_MODEL setting, lifespan warm-up, Wave 0 test infrastructure
+- [ ] 03-02-PLAN.md — Log explainer + config advisor: wire explain/advisor endpoints to Ollama, AiExplainPanel (shared), AiAdvisorPanel, aiSlice, integrate into LogTerminal/PpaMetricCards/ConfigEditor
+- [ ] 03-03-PLAN.md — Context-aware chat: wire /chat streaming endpoint (NDJSON + X-Accel-Buffering), AiChatTab with context summary + streaming cursor, AI tab in RunDetailPage
 
 ## Progress
 
