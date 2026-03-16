@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Phase 3 context gathered
-last_updated: "2026-03-16T22:42:42.490Z"
+stopped_at: Completed 03-ai-assistance/03-01-PLAN.md
+last_updated: "2026-03-16T23:26:53.054Z"
 last_activity: "2026-03-15 — Completed 02-01: Alembic migration 0003, 4 ORM models, 19 test stubs"
 progress:
   total_phases: 3
   completed_phases: 2
-  total_plans: 16
-  completed_plans: 16
+  total_plans: 19
+  completed_plans: 17
 ---
 
 # Project State
@@ -57,6 +57,7 @@ Progress: [████████████████████] 8/8 pla
 | Phase 02-learning-layer P06 | 17 | 2 tasks | 14 files |
 | Phase 02-learning-layer P07 | 2 | 2 tasks | 2 files |
 | Phase 01 P09 | 15 | 5 tasks | 6 files |
+| Phase 03-ai-assistance P01 | 563 | 2 tasks | 14 files |
 
 ## Accumulated Context
 
@@ -119,6 +120,8 @@ Recent decisions affecting current work:
 - [Phase 01]: GRT failure via glob for 5_1_grt-failed.odb — exit code 0 does not guarantee GRT success
 - [Phase 01]: WNS: finish__timing__setup__ws primary, globalroute__timing__setup__ws fallback — route__ prefix does not exist
 - [Phase 01]: DRC: detailedroute__route__drc_errors — finish__design__violations does not exist in real ORFS output
+- [Phase 03-ai-assistance]: asyncpg upgraded from 0.29.* to 0.30.* — 0.29 has no Python 3.13 wheel (C extension fails _PyLong_AsByteArray); 0.30 ships pre-built 3.13 wheels
+- [Phase 03-ai-assistance]: test_client fixture patches app.ai.llm_client.get_llm_client (local import in lifespan body) to mock warm_up(); prevents 15s test timeout when Ollama unavailable
 
 ### Pending Todos
 
@@ -138,6 +141,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-16T22:42:42.486Z
-Stopped at: Phase 3 context gathered
-Resume file: .planning/phases/03-ai-assistance/03-CONTEXT.md
+Last session: 2026-03-16T23:26:53.050Z
+Stopped at: Completed 03-ai-assistance/03-01-PLAN.md
+Resume file: None

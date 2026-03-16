@@ -47,9 +47,9 @@
 
 ### AI Assistance
 
-- [ ] **AI-01**: User can request a plain-language explanation of ORFS log errors from the last N lines of a failed stage (local Ollama inference — design data stays on-premise)
-- [ ] **AI-02**: User can request config parameter suggestions (e.g. adjust CLOCK_PERIOD, CORE_UTILIZATION) based on their current run's PPA metrics (local Ollama inference)
-- [ ] **AI-03**: User can chat with an AI assistant that has context of their current run (log excerpts, PPA metrics, config snapshot) to ask questions like "why did timing fail?"
+- [x] **AI-01**: User can request a plain-language explanation of ORFS log errors from the last N lines of a failed stage (local Ollama inference — design data stays on-premise)
+- [x] **AI-02**: User can request config parameter suggestions (e.g. adjust CLOCK_PERIOD, CORE_UTILIZATION) based on their current run's PPA metrics (local Ollama inference)
+- [x] **AI-03**: User can chat with an AI assistant that has context of their current run (log excerpts, PPA metrics, config snapshot) to ask questions like "why did timing fail?"
 
 ### Dashboard & Reporting
 
@@ -131,9 +131,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DASH-01 | Phase 2 | Complete |
 | DASH-02 | Phase 2 | Complete |
 | DASH-03 | Phase 2 | Complete |
-| AI-01 | Phase 3 | Pending |
-| AI-02 | Phase 3 | Pending |
-| AI-03 | Phase 3 | Pending |
+| AI-01 | Phase 3 | Complete |
+| AI-02 | Phase 3 | Complete |
+| AI-03 | Phase 3 | Complete |
 
 **Coverage:**
 - v1 requirements: 29 total
