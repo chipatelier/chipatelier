@@ -27,7 +27,8 @@ def test_container_spawned_with_correct_limits(mock_docker):
         run_id=run_id,
         image="openroad/orfs:latest",
         workspace_path="/tmp/ws",
-        pdk_root="/data/pdks",
+        target="finish",
+        locked_args=[],
         settings=settings,
     )
 
@@ -51,7 +52,8 @@ def test_container_has_no_network(mock_docker):
         run_id=run_id,
         image="openroad/orfs:latest",
         workspace_path="/tmp/ws",
-        pdk_root="/data/pdks",
+        target="finish",
+        locked_args=[],
         settings={"JOB_CPU_CORES": 4, "JOB_RAM_GB": 4, "JOB_DISK_GB": 5},
     )
 
@@ -62,7 +64,7 @@ def test_container_has_no_network(mock_docker):
 
 
 def test_container_security_options(mock_docker):
-    """ORFS container has read_only=True, cap_drop=ALL, no-new-privileges."""
+    """ORFS container has cap_drop=ALL, no-new-privileges, tmpfs=2g (no read_only per CLAUDE.md)."""
     from worker.container.manager import ContainerManager
 
     manager = ContainerManager()
@@ -71,17 +73,22 @@ def test_container_security_options(mock_docker):
         run_id=run_id,
         image="openroad/orfs:latest",
         workspace_path="/tmp/ws",
-        pdk_root="/data/pdks",
+        target="finish",
+        locked_args=[],
         settings={"JOB_CPU_CORES": 4, "JOB_RAM_GB": 4, "JOB_DISK_GB": 5},
     )
 
     call_kwargs = mock_docker.return_value.containers.run.call_args
     kwargs = call_kwargs.kwargs if call_kwargs.kwargs else call_kwargs[1]
 
-    assert kwargs["read_only"] is True
+    # read_only is NOT set — CLAUDE.md: OpenROAD writes temp files outside WORK_HOME;
+    # security provided by network_mode=none + cap_drop + cgroup limits instead.
+    assert kwargs.get("read_only") is not True
     assert kwargs["cap_drop"] == ["ALL"]
     assert "no-new-privileges" in kwargs["security_opt"]
+    # tmpfs 2g — Yosys uses /tmp heavily during synthesis (CLAUDE.md)
     assert "/tmp" in kwargs["tmpfs"]
+    assert "2g" in kwargs["tmpfs"]["/tmp"]
 
 
 def test_container_name_includes_run_id(mock_docker):
@@ -94,7 +101,8 @@ def test_container_name_includes_run_id(mock_docker):
         run_id=run_id,
         image="openroad/orfs:latest",
         workspace_path="/tmp/ws",
-        pdk_root="/data/pdks",
+        target="finish",
+        locked_args=[],
         settings={"JOB_CPU_CORES": 4, "JOB_RAM_GB": 4, "JOB_DISK_GB": 5},
     )
 
@@ -105,7 +113,7 @@ def test_container_name_includes_run_id(mock_docker):
 
 
 def test_container_volumes(mock_docker):
-    """Container mounts workspace rw and PDK root ro."""
+    """Container mounts workspace rw — no PDK volume (ORFS bundles PDKs internally)."""
     from worker.container.manager import ContainerManager
 
     manager = ContainerManager()
@@ -114,7 +122,8 @@ def test_container_volumes(mock_docker):
         run_id=run_id,
         image="openroad/orfs:latest",
         workspace_path="/tmp/my_workspace",
-        pdk_root="/data/pdks",
+        target="finish",
+        locked_args=[],
         settings={"JOB_CPU_CORES": 4, "JOB_RAM_GB": 4, "JOB_DISK_GB": 5},
     )
 
@@ -124,8 +133,9 @@ def test_container_volumes(mock_docker):
     volumes = kwargs["volumes"]
     assert "/tmp/my_workspace" in volumes
     assert volumes["/tmp/my_workspace"]["mode"] == "rw"
-    assert "/data/pdks" in volumes
-    assert volumes["/data/pdks"]["mode"] == "ro"
+    # PDK_ROOT is an OpenLane variable — NOT used by ORFS. ORFS bundles all platform
+    # files (sky130hd, gf180, asap7) inside the image at /OpenROAD-flow-scripts/flow/platforms/.
+    assert "/data/pdks" not in volumes
 
 
 def test_container_cleaned_up_on_completion(mock_docker):
@@ -138,7 +148,8 @@ def test_container_cleaned_up_on_completion(mock_docker):
         run_id=run_id,
         image="openroad/orfs:latest",
         workspace_path="/tmp/ws",
-        pdk_root="/data/pdks",
+        target="finish",
+        locked_args=[],
         settings={"JOB_CPU_CORES": 4, "JOB_RAM_GB": 4, "JOB_DISK_GB": 5},
     )
 
