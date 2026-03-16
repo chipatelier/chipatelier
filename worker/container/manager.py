@@ -2,12 +2,14 @@
 
 Security constraints enforced on every container:
   - network_mode="none"     : No network access (CRITICAL — containers run untrusted code)
-  - read_only=True          : Filesystem is read-only; writes only allowed in /tmp (tmpfs)
   - cap_drop=["ALL"]        : Drop all Linux capabilities
   - security_opt=["no-new-privileges"] : Prevent privilege escalation
-  - user="orfs:orfs"        : Run as unprivileged user (not root)
   - mem_limit / memswap_limit : Hard RAM cap, no swap
   - cpu_period / cpu_quota  : CPU bandwidth limit via CFS scheduler
+
+Note: read_only is NOT set on the container root. CLAUDE.md mandates this because
+OpenROAD may write temp files outside WORK_HOME (e.g. /root). Security is provided
+by --network none + cgroup limits + cap_drop instead.
 
 Note on storage-opt size=:
   storage-opt size={N}G requires the Docker daemon to use the overlay2 storage driver
@@ -35,24 +37,54 @@ class ContainerManager:
         run_id: str,
         image: str,
         workspace_path: str,
-        pdk_root: str,
+        target: str,
+        locked_args: list[str],
         settings: dict[str, Any],
     ) -> Any:
         """Spawn an isolated ORFS container and return the container object.
+
+        Args:
+            run_id: Unique run identifier used for container naming.
+            image: ORFS Docker image (e.g. openroad/orfs:latest).
+            workspace_path: Host path to the student workspace directory.
+                            Mounted read-write at /workspace inside container.
+            target: Make target to run (e.g. "synth", "route", "finish").
+                    Maps from target_stage DB field via STAGE_TO_TARGET in orfs_job.py.
+            locked_args: List of "KEY=VALUE" strings for instructor-locked params
+                         (e.g. ["CLOCK_PERIOD=10", "PLATFORM=sky130hd"]).
+                         Appended after target in the Make command — highest priority.
+            settings: Dict with JOB_CPU_CORES, JOB_RAM_GB, JOB_DISK_GB keys.
+
+        Note on PDK: ORFS bundles all platform files (sky130hd, gf180, asap7)
+        inside the image at /OpenROAD-flow-scripts/flow/platforms/. No external
+        PDK volume mount is needed or correct. PDK_ROOT is an OpenLane variable
+        and is NOT used by ORFS.
 
         The caller MUST call stop_and_remove() in a finally block.
         """
         cpu_cores = settings["JOB_CPU_CORES"]
         ram_gb = settings["JOB_RAM_GB"]
 
+        # ORFS Make invocation:
+        #   --file  : explicit Makefile path (not -C which changes directory)
+        #   DESIGN_CONFIG : absolute path to student's config.mk inside container
+        #   WORK_HOME : CRITICAL — redirects ALL output (results/logs/reports/objects)
+        #               to /workspace. Without this, output goes relative to the Make
+        #               working directory (inside the read-only ORFS install tree).
+        #   target  : the Make target stage (synth/floorplan/place/cts/route/finish)
+        #   locked_args : instructor-locked parameters override config.mk
+        command = [
+            "make",
+            "--file=/OpenROAD-flow-scripts/flow/Makefile",
+            "DESIGN_CONFIG=/workspace/config.mk",
+            "WORK_HOME=/workspace",
+            target,
+            *locked_args,
+        ]
+
         return self._client.containers.run(
             image=image,
-            command=[
-                "make", "-C", "/OpenROAD-flow-scripts/flow",
-                "DESIGN_CONFIG=/workspace/config.mk",
-                "DESIGN_HOME=/workspace",
-                "DESIGN_NICKNAME=design",  # Default design nickname
-            ],
+            command=command,
             name=f"orfs_job_{run_id}",
             detach=True,
             # CRITICAL: no network access — containers run untrusted student code
@@ -63,17 +95,17 @@ class ContainerManager:
             # RAM limits — no swap (memswap == mem_limit)
             mem_limit=f"{ram_gb}g",
             memswap_limit=f"{ram_gb}g",
-            # Read-only filesystem with tmpfs scratch space
-            read_only=True,
-            tmpfs={"/tmp": "size=512m"},
+            # DO NOT set read_only=True — OpenROAD may write temp files outside WORK_HOME.
+            # Security is enforced via network_mode=none + cap_drop + cgroup limits.
+            # tmpfs /tmp: 2g required — Yosys uses /tmp heavily during synthesis.
+            tmpfs={"/tmp": "size=2g"},
             # Security hardening
-            # Note: Running as root, but container is heavily sandboxed (no network, read-only, no caps)
             cap_drop=["ALL"],
             security_opt=["no-new-privileges"],
-            # Volume mounts
+            # Volume mounts — workspace only. NO PDK mount: ORFS bundles all PDKs
+            # inside the image at /OpenROAD-flow-scripts/flow/platforms/.
             volumes={
                 workspace_path: {"bind": "/workspace", "mode": "rw"},
-                pdk_root: {"bind": "/pdks", "mode": "ro"},
             },
             # Disk quota via storage-opt requires overlay2 + pquota mount on RHEL/Rocky 9.
             # See module docstring for enablement instructions.
