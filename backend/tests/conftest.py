@@ -7,7 +7,7 @@ import os
 import sys
 from collections.abc import AsyncGenerator
 from typing import Generator
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import pytest_asyncio
@@ -66,17 +66,27 @@ async def async_session(async_engine) -> AsyncGenerator[AsyncSession, None]:
 
 @pytest.fixture(scope="function")
 def test_client(async_session):
-    """TestClient with get_db dependency overridden to use in-memory DB."""
+    """TestClient with get_db dependency overridden to use in-memory DB.
+
+    Also patches get_llm_client to return a mock that no-ops warm_up()
+    so tests don't wait for Ollama (not available in CI).
+    """
     from fastapi.testclient import TestClient
     from app.main import app
     from app.core.database import get_db
+    from unittest.mock import AsyncMock, MagicMock
 
     async def override_get_db():
         yield async_session
 
+    # Mock the LLM client so lifespan warm_up() is a no-op in tests
+    mock_llm = MagicMock()
+    mock_llm.warm_up = AsyncMock(return_value=None)
+
     app.dependency_overrides[get_db] = override_get_db
-    with TestClient(app, raise_server_exceptions=False) as client:
-        yield client
+    with patch("app.ai.llm_client.get_llm_client", return_value=mock_llm):
+        with TestClient(app, raise_server_exceptions=False) as client:
+            yield client
     app.dependency_overrides.clear()
 
 

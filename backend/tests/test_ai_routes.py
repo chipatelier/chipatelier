@@ -2,6 +2,8 @@
 
 All AI routes return 501 Not Implemented in Phase 1.
 Phase 3 wires Ollama to these endpoints without changing the interface.
+
+# NOTE: These 501 tests will be replaced in Plan 03-02 when routes are wired to Ollama
 """
 import uuid
 
@@ -105,9 +107,8 @@ def test_ai_endpoints_require_auth(test_client):
 # LLM client stub test
 # ---------------------------------------------------------------------------
 
-def test_ollama_client_generate_raises_not_implemented():
-    """OllamaClient.generate() raises NotImplementedError (Phase 3 stub)."""
-    import asyncio
+def test_ollama_client_is_instantiable():
+    """OllamaClient can be instantiated with a base_url (Phase 3 — fully implemented)."""
     client = OllamaClient(base_url="http://localhost:11434")
-    with pytest.raises(NotImplementedError):
-        asyncio.run(client.generate("test prompt"))
+    assert client._model == "deepseek-r1:7b"
+    assert client._client is not None
