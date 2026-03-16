@@ -44,6 +44,7 @@ Plans:
 - [ ] 01-06-PLAN.md — VNC viewer (noVNC container, HMAC-signed token, Nginx auth_request proxy, DEF pre-load) — Docker Compose stack, database schema, Alembic migrations, Celery queue architecture (dedicated orfs_jobs + background workers)
 - [ ] 01-07-PLAN.md — v2 spec gaps: pgvector extension, fair per-student queue (Redis sorted sets), high-priority queue (instructor/admin), container warm pool, failure auto-retry, run notes (private by default), AI service colocation in backend
 - [ ] 01-08-PLAN.md — Gap closure: fix jobs.py cross-boundary import (HTTP 500), start_session.sh open.tcl VNC loading, metrics_service per-stage JSON parsing with (ppa, stage_metrics) tuple, celery_app import paths, celeryconfig wildcard routes
+- [ ] 01-09-PLAN.md — Gap closure: ORFS invocation (WORK_HOME, --file flag, target_stage, no PDK_ROOT, read_only=False, tmpfs=2g), metrics key names (globalroute__, detailedroute__route__drc_errors), stage detection via flow.sh pattern, GRT failure detection
 
 ### Phase 2: Learning Layer
 **Goal**: Instructors can run a course on ChipAtelier — creating assignments with locked parameters and checkpoint rules — and students can submit for auto-graded scores with leaderboard ranking
@@ -88,6 +89,6 @@ Phases execute in numeric order: 1 → 2 → 3
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Core Flow | 8/8 | Complete   | 2026-03-14 |
+| 1. Core Flow | 8/9 | Gap closure pending | 2026-03-14 |
 | 2. Learning Layer | 7/7 | Complete   | 2026-03-15 |
 | 3. AI Assistance | 0/3 | Not started | - |
