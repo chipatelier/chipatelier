@@ -5,8 +5,10 @@ Streams log lines to Redis pubsub and a Redis list buffer for later replay.
 Updates run status in PostgreSQL synchronously (SQLAlchemy sync engine).
 
 Stage transition detection inserts separator lines into the log stream at each
-ORFS flow stage boundary, making stage progress visible in the UI without
-parsing the raw log.
+ORFS flow stage boundary, using the reliable pattern from flow.sh:
+  "Running <script>.tcl, stage <stage_id>"
+This is more reliable than content-based patterns because flow.sh always prints
+this line exactly once before each stage, regardless of stage content.
 
 Container lifecycle:
   - Warm pool container claimed if available; cold start otherwise
@@ -19,6 +21,7 @@ Auto-retry policy:
   - Does NOT retry on non-zero exit code (design error — user must fix Verilog/SDC)
   - Does NOT retry on timeout (JOB_TIMEOUT_SECONDS exceeded)
 """
+import glob as glob_mod
 import os
 import re
 import shutil
@@ -32,16 +35,38 @@ from celery_app import app
 from container.manager import ContainerManager
 
 # ---------------------------------------------------------------------------
-# Stage transition detection — patterns match ORFS log output
+# Stage → Make target mapping
 # ---------------------------------------------------------------------------
 
-STAGE_PATTERNS: dict[str, re.Pattern[str]] = {
-    "synthesis": re.compile(r"(Starting|Finished)\s+synthesis", re.IGNORECASE),
-    "floorplan": re.compile(r"(Starting|Finished)\s+floorplan", re.IGNORECASE),
-    "place":     re.compile(r"(Starting|Finished)\s+placement", re.IGNORECASE),
-    "cts":       re.compile(r"(Starting|Finished)\s+cts", re.IGNORECASE),
-    "route":     re.compile(r"(Starting|Finished)\s+routing", re.IGNORECASE),
-    "gds":       re.compile(r"(Starting|Finished)\s+final", re.IGNORECASE),
+STAGE_TO_TARGET: dict[str, str] = {
+    "synth": "synth",
+    "floorplan": "floorplan",
+    "place": "place",
+    "cts": "cts",
+    "route": "route",
+    "finish": "finish",
+}
+
+# ---------------------------------------------------------------------------
+# Stage transition detection — reliable pattern from flow.sh
+# ---------------------------------------------------------------------------
+
+# flow.sh prints this before every stage:
+#   "Running floorplan.tcl, stage 2_1_floorplan"
+#   "Running cts.tcl, stage 4_1_cts"
+#   "Running global_route.tcl, stage 5_1_grt"
+# The stage_id (group 2) maps directly to the JSON metrics filename.
+STAGE_LINE_PATTERN = re.compile(r"Running (\S+\.tcl), stage (\S+)")
+
+# Map stage_id prefix to friendly name for UI display
+STAGE_ID_TO_NAME: dict[str, str] = {
+    "1_": "SYNTHESIS",
+    "2_": "FLOORPLAN",
+    "3_": "PLACEMENT",
+    "4_": "CTS",
+    "5_1_grt": "GLOBAL ROUTE",
+    "5_2": "DETAIL ROUTE",
+    "6_": "FINISH",
 }
 
 # Visual separator injected into log stream at each stage transition
@@ -52,6 +77,21 @@ LOG_BUFFER_MAX = 5000
 
 # Redis key TTL for log buffer: 24 hours
 LOG_BUFFER_TTL = 86400
+
+
+# ---------------------------------------------------------------------------
+# GRT failure detection
+# ---------------------------------------------------------------------------
+
+def _check_grt_failure(workspace: str) -> bool:
+    """Return True if GRT congestion failure ODB exists in the workspace.
+
+    ORFS global route can fail with congestion but exit 0. It writes
+    5_1_grt-failed.odb instead of 5_1_grt.odb in this case.
+    Use glob to find it without needing PLATFORM/DESIGN_NAME.
+    """
+    pattern = os.path.join(workspace, "results", "*", "*", "base", "5_1_grt-failed.odb")
+    return bool(glob_mod.glob(pattern))
 
 
 # ---------------------------------------------------------------------------
@@ -147,13 +187,23 @@ def run_orfs_job(self, run_id: str) -> None:
         update_status("starting")
         publish_line(f"[chipatelier] Starting ORFS job {run_id}")
 
-        # Fetch artifact_path from DB to locate project source files
+        # Fetch artifact_path, target_stage, and config snapshot from DB
         with Session(engine) as db:
             row = db.execute(
-                text("SELECT artifact_path FROM runs WHERE id = :id"),
+                text("SELECT artifact_path, target_stage, config FROM runs WHERE id = :id"),
                 {"id": run_id},
             ).first()
             artifact_path = row.artifact_path if row else None
+            target_stage = (row.target_stage if row else None) or "finish"
+            config_snapshot = (row.config if row else None) or {}
+
+        # Map target_stage DB field to ORFS Make target
+        make_target = STAGE_TO_TARGET.get(target_stage, "finish")
+
+        # Extract instructor-locked params from config snapshot (stored by submission endpoint)
+        # e.g. {"CLOCK_PERIOD": "10", "PLATFORM": "sky130hd"} → ["CLOCK_PERIOD=10", "PLATFORM=sky130hd"]
+        locked_params = config_snapshot.get("locked_params", {})
+        locked_args = [f"{k}={v}" for k, v in locked_params.items()]
 
         # Download source files from MinIO into workspace
         if artifact_path:
@@ -176,7 +226,8 @@ def run_orfs_job(self, run_id: str) -> None:
                     run_id=run_id,
                     image=settings.ORFS_IMAGE,
                     workspace_path=workspace,
-                    pdk_root=settings.PDK_ROOT,
+                    target=make_target,
+                    locked_args=locked_args,
                     settings={
                         "JOB_CPU_CORES": settings.JOB_CPU_CORES,
                         "JOB_RAM_GB": settings.JOB_RAM_GB,
@@ -193,16 +244,23 @@ def run_orfs_job(self, run_id: str) -> None:
         update_status("running")
 
         # Stream stdout/stderr line by line
+        # Stage transitions detected via flow.sh reliable pattern:
+        #   "Running <script>.tcl, stage <stage_id>"
         for raw_line in container.logs(stream=True, follow=True):
             line = raw_line.decode("utf-8", errors="replace").rstrip()
 
-            # Stage transition detection — inject separator before the log line
-            for stage, pattern in STAGE_PATTERNS.items():
-                if pattern.search(line):
-                    separator = SEPARATOR_FMT.format(stage=stage.upper())
-                    publish_line(separator)
-                    update_status("running", stage)
-                    break
+            # Check for stage transition marker from flow.sh
+            m = STAGE_LINE_PATTERN.search(line)
+            if m:
+                stage_id = m.group(2)  # e.g. "2_1_floorplan"
+                # Determine friendly name from prefix match
+                stage_name = next(
+                    (name for prefix, name in STAGE_ID_TO_NAME.items() if stage_id.startswith(prefix)),
+                    stage_id.upper()
+                )
+                separator = SEPARATOR_FMT.format(stage=stage_name)
+                publish_line(separator)
+                update_status("running", stage_id)
 
             publish_line(line)
 
@@ -210,12 +268,20 @@ def run_orfs_job(self, run_id: str) -> None:
         result = container.wait(timeout=settings.JOB_TIMEOUT_SECONDS)
         exit_code = result.get("StatusCode", 1)
 
-        final_status = "complete" if exit_code == 0 else "failed"
+        # GRT congestion failure: exit code may be 0 but 5_1_grt-failed.odb is written
+        # instead of 5_1_grt.odb. Must check for this file explicitly.
+        grt_failed = _check_grt_failure(workspace)
+        if grt_failed:
+            final_status = "failed"
+            publish_line("[chipatelier] GRT congestion failure detected (5_1_grt-failed.odb found) — marking failed")
+        else:
+            final_status = "complete" if exit_code == 0 else "failed"
+
         update_status(final_status)
         publish_line(f"[chipatelier] Job {run_id} finished with status: {final_status}")
 
         # Do NOT retry design errors — user must fix their Verilog/SDC
-        if exit_code == 0:
+        if final_status == "complete":
             try:
                 from tasks.tile_generator import generate_png
                 generate_png.delay(run_id, workspace)
