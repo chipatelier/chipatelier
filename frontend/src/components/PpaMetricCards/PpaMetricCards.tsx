@@ -6,8 +6,13 @@
  *   TNS: green >= -1.0ns, yellow >= -5.0ns, red worse
  *   DRC: green == 0, red > 0
  *   Area/Power: neutral (informational only)
+ *
+ * Phase 3 additions:
+ *   - Optional runId prop enables AI explain links on WNS and DRC cards
+ *   - AiExplainPanel renders below the grid when an explain type is active
  */
-import React from "react";
+import React, { useState } from "react";
+import { AiExplainPanel } from "../AiExplainPanel";
 
 export interface PpaMetrics {
   worst_negative_slack: number | null;
@@ -20,6 +25,7 @@ export interface PpaMetrics {
 
 interface Props {
   metrics: PpaMetrics | null;
+  runId?: string;
 }
 
 type ColorStatus = "green" | "yellow" | "red" | "neutral";
@@ -56,9 +62,10 @@ interface CardProps {
   value: string;
   color: ColorStatus;
   unit?: string;
+  onExplain?: () => void;
 }
 
-function MetricCard({ label, value, color, unit }: CardProps): React.ReactElement {
+function MetricCard({ label, value, color, unit, onExplain }: CardProps): React.ReactElement {
   const style = COLOR_STYLES[color];
   return (
     <div
@@ -92,11 +99,31 @@ function MetricCard({ label, value, color, unit }: CardProps): React.ReactElemen
           <span style={{ fontSize: 13, fontWeight: 400, color: "#8b949e", marginLeft: 4 }}>{unit}</span>
         )}
       </div>
+      {onExplain && (
+        <button
+          onClick={onExplain}
+          style={{
+            fontSize: 11,
+            color: "#8b5cf6",
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            padding: 0,
+            marginTop: 4,
+            textAlign: "left",
+          }}
+          aria-label={`Get AI explanation for ${label}`}
+        >
+          Explain ◆
+        </button>
+      )}
     </div>
   );
 }
 
-export function PpaMetricCards({ metrics }: Props): React.ReactElement {
+export function PpaMetricCards({ metrics, runId }: Props): React.ReactElement {
+  const [activeExplain, setActiveExplain] = useState<"timing" | "drc" | null>(null);
+
   const formatNs = (v: number | null): string =>
     v !== null ? v.toFixed(3) : "—";
 
@@ -110,42 +137,51 @@ export function PpaMetricCards({ metrics }: Props): React.ReactElement {
     v !== null ? String(v) : "—";
 
   return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
-        gap: 16,
-      }}
-    >
-      <MetricCard
-        label="WNS"
-        value={formatNs(metrics?.worst_negative_slack ?? null)}
-        color={getWnsColor(metrics?.worst_negative_slack ?? null)}
-        unit="ns"
-      />
-      <MetricCard
-        label="TNS"
-        value={formatNs(metrics?.total_negative_slack ?? null)}
-        color={getTnsColor(metrics?.total_negative_slack ?? null)}
-        unit="ns"
-      />
-      <MetricCard
-        label="DRC Violations"
-        value={formatDrc(metrics?.drc_violations ?? null)}
-        color={getDrcColor(metrics?.drc_violations ?? null)}
-      />
-      <MetricCard
-        label="Core Area"
-        value={formatArea(metrics?.core_area ?? null)}
-        color="neutral"
-        unit="µm²"
-      />
-      <MetricCard
-        label="Total Power"
-        value={formatPower(metrics?.total_power ?? null)}
-        color="neutral"
-        unit="mW"
-      />
+    <div>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+          gap: 16,
+        }}
+      >
+        <MetricCard
+          label="WNS"
+          value={formatNs(metrics?.worst_negative_slack ?? null)}
+          color={getWnsColor(metrics?.worst_negative_slack ?? null)}
+          unit="ns"
+          onExplain={runId ? () => setActiveExplain(activeExplain === "timing" ? null : "timing") : undefined}
+        />
+        <MetricCard
+          label="TNS"
+          value={formatNs(metrics?.total_negative_slack ?? null)}
+          color={getTnsColor(metrics?.total_negative_slack ?? null)}
+          unit="ns"
+        />
+        <MetricCard
+          label="DRC Violations"
+          value={formatDrc(metrics?.drc_violations ?? null)}
+          color={getDrcColor(metrics?.drc_violations ?? null)}
+          onExplain={runId ? () => setActiveExplain(activeExplain === "drc" ? null : "drc") : undefined}
+        />
+        <MetricCard
+          label="Core Area"
+          value={formatArea(metrics?.core_area ?? null)}
+          color="neutral"
+          unit="µm²"
+        />
+        <MetricCard
+          label="Total Power"
+          value={formatPower(metrics?.total_power ?? null)}
+          color="neutral"
+          unit="mW"
+        />
+      </div>
+
+      {/* AI explain panel — rendered below grid when active */}
+      {activeExplain && runId && (
+        <AiExplainPanel runId={runId} explainType={activeExplain} />
+      )}
     </div>
   );
 }

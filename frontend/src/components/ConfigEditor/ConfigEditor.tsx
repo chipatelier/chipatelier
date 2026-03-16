@@ -1,12 +1,15 @@
 import { useState } from "react";
 import Editor from "@monaco-editor/react";
 import { ParamForm } from "./ParamForm";
+import { AiAdvisorPanel } from "../AiAdvisorPanel";
 
 interface ConfigEditorProps {
   configContent: string;
   onChange: (newContent: string) => void;
   lockedParams?: Record<string, string>;
   editableParams?: string[];
+  /** Optional run ID for AI advisor context. When present, advisor has PPA metrics. */
+  runId?: string | null;
 }
 
 function parseParamValues(content: string): Record<string, string> {
@@ -36,8 +39,10 @@ export function ConfigEditor({
   onChange,
   lockedParams = {},
   editableParams = [],
+  runId = null,
 }: ConfigEditorProps) {
   const [mode, setMode] = useState<"form" | "raw">("form");
+  const [showAdvisor, setShowAdvisor] = useState(false);
   const paramValues = parseParamValues(configContent);
 
   const handleParamChange = (key: string, value: string) => {
@@ -46,7 +51,7 @@ export function ConfigEditor({
 
   return (
     <div className="config-editor flex flex-col h-full">
-      <div className="config-editor-header flex gap-2 p-2 border-b">
+      <div className="config-editor-header flex gap-2 p-2 border-b" style={{ alignItems: "center" }}>
         <button
           onClick={() => setMode("form")}
           className={`px-3 py-1 rounded text-sm font-medium ${
@@ -69,6 +74,23 @@ export function ConfigEditor({
         >
           Raw
         </button>
+        <button
+          onClick={() => setShowAdvisor(!showAdvisor)}
+          style={{
+            marginLeft: "auto",
+            padding: "6px 14px",
+            fontSize: 12,
+            fontWeight: 600,
+            background: "#1e1433",
+            color: "#8b5cf6",
+            border: "1px solid #2d1f4a",
+            borderRadius: 6,
+            cursor: "pointer",
+          }}
+          aria-pressed={showAdvisor}
+        >
+          Get AI Suggestions ◆
+        </button>
       </div>
       {mode === "form" ? (
         <ParamForm
@@ -86,6 +108,11 @@ export function ConfigEditor({
           theme="vs-dark"
           options={{ minimap: { enabled: false } }}
         />
+      )}
+      {showAdvisor && (
+        <div style={{ padding: "0 16px 16px 16px" }}>
+          <AiAdvisorPanel runId={runId ?? null} configContent={configContent} />
+        </div>
       )}
     </div>
   );

@@ -290,7 +290,7 @@ export default function RunDetailPage(): React.ReactElement {
                   <h3 style={{ color: "#f0f6fc", fontSize: 15, margin: "0 0 16px 0" }}>
                     PPA Metrics
                   </h3>
-                  <PpaMetricCards metrics={run?.ppa as import("../components/PpaMetricCards").PpaMetrics | null} />
+                  <PpaMetricCards metrics={run?.ppa as import("../components/PpaMetricCards").PpaMetrics | null} runId={runId} />
                 </div>
 
                 {/* Layout Snapshot with VNC button and download links */}

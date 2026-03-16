@@ -8,11 +8,16 @@
  *   - "Jump to bottom" button appears when auto-scroll is paused
  *   - Auto-scroll resumes when user scrolls back to bottom
  *   - Stage separator lines (starting with "═══") rendered in cyan (\x1b[36m)
+ *
+ * Phase 3 additions:
+ *   - 32px header bar with "Explain" button
+ *   - AiExplainPanel rendered below terminal on Explain click
  */
 import { useEffect, useRef, useState } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { useLogStream } from "../../hooks/useLogStream";
+import { AiExplainPanel } from "../AiExplainPanel";
 import "@xterm/xterm/css/xterm.css";
 
 interface LogTerminalProps {
@@ -26,6 +31,7 @@ export function LogTerminal({ runId, isRunning = true }: LogTerminalProps): Reac
   const termInstance = useRef<Terminal | null>(null);
   const autoScrollRef = useRef(true);
   const [showJumpBtn, setShowJumpBtn] = useState(false);
+  const [showExplain, setShowExplain] = useState(false);
 
   // Initialize terminal once on mount
   useEffect(() => {
@@ -109,38 +115,81 @@ export function LogTerminal({ runId, isRunning = true }: LogTerminalProps): Reac
     setShowJumpBtn(false);
   };
 
+  const handleExplain = (): void => {
+    setShowExplain((prev) => !prev);
+  };
+
   return (
-    <div
-      style={{
-        position: "relative",
-        height: "100%",
-        width: "100%",
-        background: "#0d1117",
-        overflow: "hidden",
-      }}
-    >
-      <div ref={termRef} style={{ height: "100%", width: "100%" }} />
-      {showJumpBtn && (
+    <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
+      {/* Header bar — 32px */}
+      <div
+        style={{
+          height: 32,
+          flexShrink: 0,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "flex-end",
+          padding: "0 12px",
+          background: "#161b22",
+          borderBottom: "1px solid #30363d",
+        }}
+      >
         <button
-          onClick={handleJumpToBottom}
+          onClick={handleExplain}
           style={{
-            position: "absolute",
-            bottom: 16,
-            right: 16,
-            padding: "6px 12px",
-            background: "#1f6feb",
-            color: "#ffffff",
-            border: "none",
+            padding: "4px 10px",
+            fontSize: 12,
+            background: showExplain ? "#1e1433" : "#21262d",
+            color: "#8b5cf6",
+            border: "1px solid #2d1f4a",
             borderRadius: 4,
             cursor: "pointer",
-            fontSize: 12,
-            fontFamily: "sans-serif",
-            zIndex: 10,
-            boxShadow: "0 2px 8px rgba(0,0,0,0.4)",
           }}
+          aria-label="Get AI explanation for this log"
         >
-          Jump to bottom
+          Explain
         </button>
+      </div>
+
+      {/* Terminal — takes remaining space */}
+      <div
+        style={{
+          flex: showExplain ? "0 0 300px" : 1,
+          position: "relative",
+          overflow: "hidden",
+          background: "#0d1117",
+        }}
+      >
+        <div ref={termRef} style={{ height: "100%", width: "100%" }} />
+        {showJumpBtn && (
+          <button
+            onClick={handleJumpToBottom}
+            style={{
+              position: "absolute",
+              bottom: 16,
+              right: 16,
+              padding: "6px 12px",
+              background: "#1f6feb",
+              color: "#ffffff",
+              border: "none",
+              borderRadius: 4,
+              cursor: "pointer",
+              fontSize: 12,
+              fontFamily: "sans-serif",
+              zIndex: 10,
+              boxShadow: "0 2px 8px rgba(0,0,0,0.4)",
+            }}
+          >
+            Jump to bottom
+          </button>
+        )}
+      </div>
+
+      {/* Explain panel — below terminal, only rendered when triggered */}
+      {showExplain && runId && (
+        <div style={{ flexShrink: 0, padding: "0 12px 12px 12px", background: "#0d1117" }}>
+          <AiExplainPanel runId={runId} explainType="log" />
+        </div>
       )}
     </div>
   );
