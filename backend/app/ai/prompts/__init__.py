@@ -20,3 +20,8 @@ def register_prompt(name: str):
         PROMPT_REGISTRY[name] = fn
         return fn
     return decorator
+
+
+# Import prompt modules so @register_prompt decorators run at import time
+import app.ai.prompts.explain  # noqa: F401, E402
+import app.ai.prompts.advisor  # noqa: F401, E402

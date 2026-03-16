@@ -16,9 +16,12 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application lifespan: initialize DB and storage on startup."""
+    """Application lifespan: initialize DB, storage, and AI model on startup."""
     await init_db()
     _ensure_storage_bucket()
+    from app.ai.llm_client import get_llm_client
+    llm = get_llm_client()
+    await llm.warm_up()
     yield
     await close_redis()
 

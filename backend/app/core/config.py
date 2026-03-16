@@ -47,6 +47,7 @@ class Settings(BaseSettings):
     # AI Service
     LLM_BACKEND: str = "ollama"
     OLLAMA_BASE_URL: str = "http://ai-service:11434"
+    OLLAMA_MODEL: str = "deepseek-r1:7b"
     ANTHROPIC_API_KEY: str = ""
 
     # Domain

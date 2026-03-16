@@ -12,7 +12,13 @@ Privacy constraint (CLAUDE.md):
 """
 from __future__ import annotations
 
+import asyncio
+import logging
+import re
 from abc import ABC, abstractmethod
+from typing import AsyncIterator
+
+from ollama import AsyncClient as OllamaAsyncClient
 
 from app.core.config import get_settings
 
@@ -33,27 +39,61 @@ class LLMClient(ABC):
 class OllamaClient(LLMClient):
     """Ollama local LLM client (default — keeps design data on-premise).
 
-    Phase 3 implementation: POST {base_url}/api/generate, stream response.
+    Uses the ollama Python AsyncClient (0.6.1) for async inference.
+    Strips <think>...</think> reasoning tags from deepseek-r1 responses.
     """
 
-    def __init__(self, base_url: str, model: str = "llama3.2:3b"):
-        self._base_url = base_url
+    def __init__(self, base_url: str, model: str = "deepseek-r1:7b"):
+        self._client = OllamaAsyncClient(host=base_url)
         self._model = model
 
-    async def warm_up(self) -> None:
-        """Send a trivial generation request to load the model into memory.
-
-        Phase 3 implementation: POST {base_url}/api/generate with empty prompt.
-        MVP stub — no-op (model loads on first real request).
-        """
-        pass
-
     async def generate(self, prompt: str, max_tokens: int = 1024) -> str:
-        """Generate a completion via Ollama API.
+        """Generate a completion via Ollama API (non-streaming).
 
-        Phase 3 implementation: POST {base_url}/api/generate, stream response.
+        Strips <think>...</think> reasoning traces emitted by deepseek-r1 models.
         """
-        raise NotImplementedError("Ollama AI features available in Phase 3")
+        response = await self._client.generate(
+            model=self._model,
+            prompt=prompt,
+            options={"num_predict": max_tokens, "num_ctx": 8192},
+            stream=False,
+            keep_alive=-1,
+        )
+        raw = response["response"]
+        return re.sub(r"<think>.*?</think>", "", raw, flags=re.DOTALL).strip()
+
+    async def chat_stream(self, messages: list[dict]) -> AsyncIterator:
+        """Stream a multi-turn chat response via Ollama API.
+
+        Returns an async iterator of chunk dicts with shape:
+            {"message": {"content": "<token>"}}
+        """
+        return await self._client.chat(
+            model=self._model,
+            messages=messages,
+            stream=True,
+            options={"num_ctx": 8192, "num_predict": 512},
+            keep_alive=-1,
+        )
+
+    async def warm_up(self) -> None:
+        """Pre-load model into memory with keep_alive=-1 to pin it.
+
+        Retries 3 times with 5-second backoff to handle Ollama container
+        startup race conditions. Non-fatal if all attempts fail — model
+        loads on first real request (with cold-start delay).
+        """
+        log = logging.getLogger("chipatelier.ai")
+        for attempt in range(1, 4):
+            try:
+                await self._client.generate(model=self._model, prompt="", keep_alive=-1)
+                log.info("Ollama model %s warmed up successfully", self._model)
+                return
+            except Exception as exc:
+                log.warning("Ollama warm-up attempt %d/3 failed: %s", attempt, exc)
+                if attempt < 3:
+                    await asyncio.sleep(5)
+        log.warning("Ollama warm-up failed after 3 attempts — model loads on first request")
 
 
 class AnthropicClient(LLMClient):
@@ -90,4 +130,4 @@ def get_llm_client() -> LLMClient:
     if settings.LLM_BACKEND == "openai":
         return OpenAIClient(api_key=settings.ANTHROPIC_API_KEY)  # placeholder
     # Default: Ollama (local inference)
-    return OllamaClient(base_url=settings.OLLAMA_BASE_URL)
+    return OllamaClient(base_url=settings.OLLAMA_BASE_URL, model=settings.OLLAMA_MODEL)
