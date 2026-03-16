@@ -25,8 +25,10 @@ class Settings(BaseSettings):
     VNC_TOKEN_SECRET: str = "change_me_in_production"
 
     # OpenROAD
+    # Note: PDK_ROOT is NOT used by ORFS. ORFS bundles all platform files (sky130hd,
+    # gf180, asap7) inside the image at /OpenROAD-flow-scripts/flow/platforms/.
+    # PDK_ROOT is an OpenLane variable — do not add it here.
     ORFS_IMAGE: str = "openroad/orfs:latest"
-    PDK_ROOT: str = "/data/pdks"
     ARTIFACTS_ROOT: str = "/data/artifacts"
     WARM_POOL_SIZE: int = 4
     MAX_CONCURRENT_JOBS: int = 12

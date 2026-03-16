@@ -16,8 +16,10 @@ class WorkerSettings(BaseSettings):
     S3_BUCKET_ARTIFACTS: str = "chipatelier-artifacts"
     
     # OpenROAD
+    # Note: PDK_ROOT is NOT used by ORFS. ORFS bundles all platform files (sky130hd,
+    # gf180, asap7) inside the image at /OpenROAD-flow-scripts/flow/platforms/.
+    # PDK_ROOT is an OpenLane variable — do not add it here.
     ORFS_IMAGE: str = "openroad/orfs:latest"
-    PDK_ROOT: str = "/data/pdks"
     ARTIFACTS_ROOT: str = "/data/artifacts"
     JOB_TIMEOUT_SECONDS: int = 7200
     JOB_CPU_CORES: int = 6
