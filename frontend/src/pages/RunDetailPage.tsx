@@ -22,9 +22,17 @@ import { LogTerminal } from "../components/LogTerminal";
 import { StageStatusBar } from "../components/StageStatusBar";
 import { PpaMetricCards } from "../components/PpaMetricCards";
 import { LayoutSnapshot } from "../components/LayoutSnapshot";
+import { AiChatTab } from "../components/AiChatTab";
 import { useStore } from "../store";
 
-type Tab = "logs" | "results" | "config";
+type Tab = "logs" | "results" | "config" | "ai";
+
+const TAB_LABELS: Record<Tab, string> = {
+  logs: "Logs",
+  results: "Results",
+  config: "Config",
+  ai: "AI",
+};
 
 const ACTIVE_STATUSES = new Set(["queued", "starting", "running"]);
 const TERMINAL_STATUSES = new Set(["complete", "failed", "timeout", "cancelled"]);
@@ -233,7 +241,7 @@ export default function RunDetailPage(): React.ReactElement {
           flexShrink: 0,
         }}
       >
-        {(["logs", "results", "config"] as Tab[]).map((tab) => {
+        {(["logs", "results", "config", "ai"] as Tab[]).map((tab) => {
           const disabled = tab === "results" && running;
           const active = activeTab === tab;
           return (
@@ -250,11 +258,10 @@ export default function RunDetailPage(): React.ReactElement {
                 cursor: disabled ? "not-allowed" : "pointer",
                 fontSize: 13,
                 fontWeight: active ? 600 : 400,
-                textTransform: "capitalize",
               }}
               title={disabled ? "Results will appear when the job completes" : undefined}
             >
-              {tab}
+              {TAB_LABELS[tab]}
               {tab === "results" && running && (
                 <span style={{ fontSize: 10, marginLeft: 4, color: "#6e7681" }}>
                   (locked)
@@ -357,6 +364,13 @@ export default function RunDetailPage(): React.ReactElement {
                 No config snapshot available for this run.
               </p>
             )}
+          </div>
+        )}
+
+        {/* AI tab — multi-turn context-aware chat */}
+        {activeTab === "ai" && (
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minHeight: 0 }}>
+            <AiChatTab runId={runId ?? ""} run={run} />
           </div>
         )}
       </div>
