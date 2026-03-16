@@ -2,7 +2,7 @@
 
 ORFS writes one JSON file per stage in logs/{platform}/{design}/base/.
 Key format: {stage}__{category}__{metric}
-Example: route__timing__setup__ws, finish__design__violations
+Example: globalroute__timing__setup__ws, finish__timing__setup__ws
 
 Reference: CLAUDE.md "Real ORFS Metrics Schema" section.
 """
@@ -15,7 +15,13 @@ def parse_ppa_metrics(workspace: str, platform: str, design: str) -> tuple[dict,
 
     ORFS writes one JSON file per stage (e.g. 2_1_floorplan.json, 5_1_grt.json,
     6_report.json). Each file uses the key format: {stage}__{category}__{metric}.
-    Example: "floorplan__timing__setup__ws", "route__timing__setup__tns"
+    Example: "floorplan__timing__setup__ws", "globalroute__timing__setup__tns"
+
+    Key naming conventions (from CLAUDE.md verified real ORFS output):
+      - Global route (5_1_grt.json): globalroute__timing__setup__ws (NOT route__)
+      - DRC routing errors (5_2_route.json): detailedroute__route__drc_errors
+        (NOT finish__design__violations — that key does NOT exist in real ORFS output)
+      - Flow complete indicator: finish__timing__setup__ws (written by final_report.tcl)
 
     Returns:
         ppa: dict — friendly-name mapped subset for runs.ppa JSONB column
@@ -51,24 +57,31 @@ def parse_ppa_metrics(workspace: str, platform: str, design: str) -> tuple[dict,
         return ppa, stage_metrics
 
     # Map raw ORFS keys to friendly names for the ppa column.
-    # Route metrics preferred over finish for WNS/TNS (finish may not exist for partial runs).
-    # finish__design__violations being present (not None) indicates the full flow ran.
+    #
+    # WNS/TNS: primary key is from finish stage (6_report.json: finish__timing__setup__ws).
+    # Fallback for partial runs (flow stopped before finish): global route stage
+    # (5_1_grt.json: globalroute__timing__setup__ws). NOTE: the prefix is "globalroute__"
+    # NOT "route__" — that prefix does not exist in real ORFS output.
+    #
+    # DRC violations: detailedroute__route__drc_errors from 5_2_route.json.
+    # CRITICAL: finish__design__violations does NOT exist in real ORFS output.
+    # Do not use it for DRC count or flow_complete detection.
+    #
+    # flow_complete: finish__timing__setup__ws is written by final_report.tcl (6_report.json).
+    # Its presence (not None) means the full flow completed successfully.
     ppa.update({
         "worst_negative_slack": stage_metrics.get(
-            "route__timing__setup__ws",
-            stage_metrics.get("finish__timing__setup__ws"),
+            "finish__timing__setup__ws",          # primary: full flow signoff
+            stage_metrics.get("globalroute__timing__setup__ws"),  # fallback: partial run
         ),
         "total_negative_slack": stage_metrics.get(
-            "route__timing__setup__tns",
-            stage_metrics.get("finish__timing__setup__tns"),
+            "finish__timing__setup__tns",          # primary: full flow signoff
+            stage_metrics.get("globalroute__timing__setup__tns"),  # fallback: partial run
         ),
         "core_area": stage_metrics.get("floorplan__design__core__area"),
-        "drc_violations": int(stage_metrics.get("finish__design__violations", 0) or 0),
-        "total_power": stage_metrics.get(
-            "finish__power__total",
-            stage_metrics.get("route__power__total"),
-        ),
-        "flow_complete": stage_metrics.get("finish__design__violations") is not None,
+        "drc_violations": int(stage_metrics.get("detailedroute__route__drc_errors", 0) or 0),
+        "total_power": stage_metrics.get("finish__power__total"),
+        "flow_complete": stage_metrics.get("finish__timing__setup__ws") is not None,
     })
 
     return ppa, stage_metrics
