@@ -301,7 +301,8 @@ async def get_course_dashboard(
     try:
         from app.core.redis import get_redis
         r = await get_redis()
-        queued = await r.llen("orfs_jobs") or 0
+        # fair_queue:normal is a sorted set (ZADD in jobs.py)
+        queued = await r.zcard("fair_queue:normal") or 0
     except Exception:
         pass
 

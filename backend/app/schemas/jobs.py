@@ -1,14 +1,25 @@
 """Pydantic schemas for job submission and status endpoints."""
 import uuid
 from datetime import datetime
+from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
 
+class TargetStage(StrEnum):
+    """Valid ORFS Make targets for job submission."""
+    SYNTH = "synth"
+    FLOORPLAN = "floorplan"
+    PLACE = "place"
+    CTS = "cts"
+    ROUTE = "route"
+    FINISH = "finish"
+
+
 class SubmitRequest(BaseModel):
     project_id: uuid.UUID
-    target_stage: str = "finish"  # synth | floorplan | place | cts | route | finish
+    target_stage: TargetStage = TargetStage.FINISH
     config_overrides: dict[str, Any] = {}
     source_path: str | None = None  # Path to uploaded files in MinIO (e.g., "projects/{id}/v1")
 

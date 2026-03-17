@@ -58,7 +58,7 @@ def test_submit_job(test_client, mock_redis):
 
         resp = test_client.post(
             "/api/v1/jobs/submit",
-            json={"project_id": proj_id, "target_stage": "gds", "config_overrides": {}},
+            json={"project_id": proj_id, "target_stage": "finish", "config_overrides": {}},
             headers=auth_headers(token),
         )
     assert resp.status_code == 202, resp.text
@@ -82,7 +82,7 @@ def test_submit_job_wrong_project(test_client):
     with patch("app.core.celery_client.celery_app.send_task"):
         resp = test_client.post(
             "/api/v1/jobs/submit",
-            json={"project_id": str(uuid.uuid4()), "target_stage": "gds"},
+            json={"project_id": str(uuid.uuid4()), "target_stage": "finish"},
             headers=auth_headers(token),
         )
     assert resp.status_code == 404
@@ -97,7 +97,7 @@ def test_submit_job_other_users_project(test_client):
     with patch("app.core.celery_client.celery_app.send_task"):
         resp = test_client.post(
             "/api/v1/jobs/submit",
-            json={"project_id": proj_id, "target_stage": "gds"},
+            json={"project_id": proj_id, "target_stage": "finish"},
             headers=auth_headers(token_other),
         )
     assert resp.status_code == 403
@@ -116,7 +116,7 @@ def test_single_active_run_constraint(test_client):
         # First submit — succeeds
         r1 = test_client.post(
             "/api/v1/jobs/submit",
-            json={"project_id": proj_id, "target_stage": "gds"},
+            json={"project_id": proj_id, "target_stage": "finish"},
             headers=auth_headers(token),
         )
         assert r1.status_code == 202, r1.text
@@ -142,7 +142,7 @@ def test_get_job_status(test_client):
 
         submit_resp = test_client.post(
             "/api/v1/jobs/submit",
-            json={"project_id": proj_id, "target_stage": "gds"},
+            json={"project_id": proj_id, "target_stage": "finish"},
             headers=auth_headers(token),
         )
     run_id = submit_resp.json()["run_id"]
@@ -177,7 +177,7 @@ def test_get_job_status_ownership(test_client):
 
         submit_resp = test_client.post(
             "/api/v1/jobs/submit",
-            json={"project_id": proj_id, "target_stage": "gds"},
+            json={"project_id": proj_id, "target_stage": "finish"},
             headers=auth_headers(token_owner),
         )
     run_id = submit_resp.json()["run_id"]
@@ -198,7 +198,7 @@ def test_cancel_queued_job(test_client):
 
         submit_resp = test_client.post(
             "/api/v1/jobs/submit",
-            json={"project_id": proj_id, "target_stage": "gds"},
+            json={"project_id": proj_id, "target_stage": "finish"},
             headers=auth_headers(token),
         )
     run_id = submit_resp.json()["run_id"]
@@ -224,7 +224,7 @@ def test_cancel_completed_job_returns_400(test_client, async_session):
 
         submit_resp = test_client.post(
             "/api/v1/jobs/submit",
-            json={"project_id": proj_id, "target_stage": "gds"},
+            json={"project_id": proj_id, "target_stage": "finish"},
             headers=auth_headers(token),
         )
     run_id = submit_resp.json()["run_id"]

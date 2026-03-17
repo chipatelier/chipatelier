@@ -76,11 +76,11 @@ async def start_vnc_session(
     # Fetch run and verify ownership via project
     run: Run | None = await db.get(Run, run_id)
     if not run:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Run not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Run not found")
 
     project: Project | None = await db.get(Project, run.project_id)
     if not project or project.user_id != user.id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Run not found")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
 
     # Verify run is complete
     if run.status != "complete":

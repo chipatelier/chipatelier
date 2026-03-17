@@ -57,7 +57,7 @@ def test_artifacts_404_when_no_artifact_path(test_client, mock_s3):
 
         submit_resp = test_client.post(
             "/api/v1/jobs/submit",
-            json={"project_id": proj_id, "target_stage": "gds"},
+            json={"project_id": proj_id, "target_stage": "finish"},
             headers=auth_headers(token),
         )
         assert submit_resp.status_code == 202
@@ -83,7 +83,7 @@ def test_artifacts_returns_presigned_urls(test_client, async_session, mock_s3):
 
         submit_resp = test_client.post(
             "/api/v1/jobs/submit",
-            json={"project_id": proj_id, "target_stage": "gds"},
+            json={"project_id": proj_id, "target_stage": "finish"},
             headers=auth_headers(token),
         )
         assert submit_resp.status_code == 202

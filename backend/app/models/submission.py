@@ -53,3 +53,4 @@ class Submission(Base):
     assignment: Mapped["Assignment"] = relationship(  # type: ignore[name-defined]  # noqa: F821
         "Assignment", back_populates="submissions"
     )
+    user: Mapped["User"] = relationship("User")  # type: ignore[name-defined]  # noqa: F821
