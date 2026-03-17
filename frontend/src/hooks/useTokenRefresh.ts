@@ -7,20 +7,6 @@ type FailedRequest = {
   reject: (error: unknown) => void;
 };
 
-let isRefreshing = false;
-let failedQueue: FailedRequest[] = [];
-
-function processQueue(error: unknown, token: string | null): void {
-  failedQueue.forEach(({ resolve, reject }) => {
-    if (error) {
-      reject(error);
-    } else if (token) {
-      resolve(token);
-    }
-  });
-  failedQueue = [];
-}
-
 /**
  * Setup Axios interceptors for transparent JWT refresh on 401 responses.
  *
@@ -29,9 +15,24 @@ function processQueue(error: unknown, token: string | null): void {
  * - Queues concurrent failing requests and retries them once the token is renewed.
  * - If refresh fails, clears auth state and redirects to /login.
  *
- * Call this once in App.tsx via useEffect on mount.
+ * State (isRefreshing, failedQueue) is encapsulated in the closure so it cannot
+ * leak across multiple calls. Call this once in App.tsx via useEffect on mount.
  */
 export function setupTokenRefreshInterceptor(): void {
+  let isRefreshing = false;
+  let failedQueue: FailedRequest[] = [];
+
+  function processQueue(error: unknown, token: string | null): void {
+    failedQueue.forEach(({ resolve, reject }) => {
+      if (error) {
+        reject(error);
+      } else if (token) {
+        resolve(token);
+      }
+    });
+    failedQueue = [];
+  }
+
   // Request interceptor: attach current access token
   apiClient.interceptors.request.use(
     (config) => {

@@ -6,6 +6,8 @@ export interface UserResponse {
   display_name: string | null;
   role: string;
   storage_used_bytes: number;
+  /** Institution-level quota in bytes. Null when institution has no quota configured. */
+  storage_quota_bytes: number | null;
   created_at: string;
 }
 
