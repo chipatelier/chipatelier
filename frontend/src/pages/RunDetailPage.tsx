@@ -10,7 +10,7 @@
  *   - Results tab: <PpaMetricCards> + <LayoutSnapshot> — disabled while running
  *   - Config tab: raw config JSONB as formatted JSON in <pre> with copy button
  *   - Auto-switch to Results tab when job completes
- *   - Poll job status every 3s when run is active; stop when terminal state
+ *   - Poll job status every POLL_INTERVAL_MS when run is active; stop when terminal state
  *   - Fetch artifacts after job completes; pass to LayoutSnapshot
  */
 import React, { useEffect, useRef, useState } from "react";
@@ -20,10 +20,11 @@ import { getJobStatus, cancelJob, RunStatusResponse } from "../api/jobs";
 import { getArtifacts, ArtifactURLs } from "../api/artifacts";
 import { LogTerminal } from "../components/LogTerminal";
 import { StageStatusBar } from "../components/StageStatusBar";
-import { PpaMetricCards } from "../components/PpaMetricCards";
-import { LayoutSnapshot } from "../components/LayoutSnapshot";
+import { ResultsTab } from "../components/ResultsTab";
+import { ConfigTab } from "../components/ConfigTab";
 import { AiChatTab } from "../components/AiChatTab";
 import { useStore } from "../store";
+import { POLL_INTERVAL_MS } from "../constants";
 
 type Tab = "logs" | "results" | "config" | "ai";
 
@@ -36,7 +37,14 @@ const TAB_LABELS: Record<Tab, string> = {
 
 const ACTIVE_STATUSES = new Set(["queued", "starting", "running"]);
 const TERMINAL_STATUSES = new Set(["complete", "failed", "timeout", "cancelled"]);
-const POLL_INTERVAL_MS = 3000;
+
+function isRunning(status: string | null): boolean {
+  return status ? ACTIVE_STATUSES.has(status) : false;
+}
+
+function isTerminal(status: string | null): boolean {
+  return status ? TERMINAL_STATUSES.has(status) : false;
+}
 
 export default function RunDetailPage(): React.ReactElement {
   const { id: projectId, runId } = useParams<{ id: string; runId: string }>();
@@ -51,16 +59,9 @@ export default function RunDetailPage(): React.ReactElement {
   const [activeTab, setActiveTab] = useState<Tab>("logs");
   const [cancelling, setCancelling] = useState(false);
   const [artifacts, setArtifacts] = useState<ArtifactURLs | null>(null);
-  const [copyDone, setCopyDone] = useState(false);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  function isRunning(status: string | null): boolean {
-    return status ? ACTIVE_STATUSES.has(status) : false;
-  }
-
-  function isTerminal(status: string | null): boolean {
-    return status ? TERMINAL_STATUSES.has(status) : false;
-  }
+  // Track status in a ref so the polling effect doesn't re-mount on every status change
+  const statusRef = useRef<string | null>(null);
 
   async function fetchArtifacts(id: string): Promise<void> {
     try {
@@ -77,10 +78,10 @@ export default function RunDetailPage(): React.ReactElement {
     Promise.all([getJobStatus(runId), getProjectById(projectId)])
       .then(([runResp, proj]) => {
         setRun(runResp);
+        statusRef.current = runResp.status;
         setProjectName(proj.name);
         setRunStatus(runResp.status, runResp.stage_completed);
         setActiveRun(runId);
-        // If already complete on load, fetch artifacts immediately
         if (runResp.status === "complete") {
           fetchArtifacts(runId);
         }
@@ -94,18 +95,22 @@ export default function RunDetailPage(): React.ReactElement {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runId, projectId]);
 
-  // Poll status while run is active
+  // Poll status while run is active — depends only on runId, not run.status
   useEffect(() => {
-    if (!runId || !run) return;
-    if (isTerminal(run.status)) return;
+    if (!runId) return;
 
     pollingRef.current = setInterval(async () => {
+      // Use ref to check terminal without re-mounting the effect
+      if (isTerminal(statusRef.current)) {
+        if (pollingRef.current) clearInterval(pollingRef.current);
+        return;
+      }
       try {
         const updated = await getJobStatus(runId);
         setRun(updated);
+        statusRef.current = updated.status;
         setRunStatus(updated.status, updated.stage_completed);
 
-        // Auto-switch to Results tab when job completes
         if (updated.status === "complete") {
           setActiveTab("results");
           fetchArtifacts(runId);
@@ -123,7 +128,7 @@ export default function RunDetailPage(): React.ReactElement {
       if (pollingRef.current) clearInterval(pollingRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [runId, run?.status]);
+  }, [runId]);
 
   async function handleCancel(): Promise<void> {
     if (!runId) return;
@@ -132,20 +137,13 @@ export default function RunDetailPage(): React.ReactElement {
       await cancelJob(runId);
       const updated = await getJobStatus(runId);
       setRun(updated);
+      statusRef.current = updated.status;
       setRunStatus(updated.status, updated.stage_completed);
     } catch {
       setError("Failed to cancel run");
     } finally {
       setCancelling(false);
     }
-  }
-
-  function handleCopyConfig(): void {
-    const configText = run?.config ? JSON.stringify(run.config, null, 2) : "";
-    navigator.clipboard.writeText(configText).then(() => {
-      setCopyDone(true);
-      setTimeout(() => setCopyDone(false), 2000);
-    });
   }
 
   if (loading) {
@@ -172,7 +170,6 @@ export default function RunDetailPage(): React.ReactElement {
     >
       {/* Header */}
       <header style={{ padding: "16px 24px", borderBottom: "1px solid #30363d", background: "#161b22", flexShrink: 0 }}>
-        {/* Breadcrumb */}
         <nav style={{ fontSize: 13, color: "#8b949e", marginBottom: 8 }}>
           <Link to="/projects" style={{ color: "#58a6ff", textDecoration: "none" }}>Projects</Link>
           <span style={{ margin: "0 8px" }}>&rsaquo;</span>
@@ -280,94 +277,25 @@ export default function RunDetailPage(): React.ReactElement {
           </div>
         )}
 
-        {/* Logs tab */}
         {activeTab === "logs" && (
           <div style={{ flex: 1, overflow: "hidden", minHeight: 0 }}>
             <LogTerminal runId={runId ?? null} isRunning={running} />
           </div>
         )}
 
-        {/* Results tab — disabled while running (LOCKED) */}
         {activeTab === "results" && (
-          <div style={{ padding: 24, overflowY: "auto" }}>
-            {runStatus === "complete" ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-                {/* PPA Metric Cards */}
-                <div>
-                  <h3 style={{ color: "#f0f6fc", fontSize: 15, margin: "0 0 16px 0" }}>
-                    PPA Metrics
-                  </h3>
-                  <PpaMetricCards metrics={run?.ppa as import("../components/PpaMetricCards").PpaMetrics | null} runId={runId} />
-                </div>
-
-                {/* Layout Snapshot with VNC button and download links */}
-                <div>
-                  <h3 style={{ color: "#f0f6fc", fontSize: 15, margin: "0 0 16px 0" }}>
-                    Layout Preview
-                  </h3>
-                  <LayoutSnapshot
-                    runId={runId ?? ""}
-                    artifacts={runStatus === "complete" ? artifacts : null}
-                  />
-                </div>
-              </div>
-            ) : (
-              <p style={{ color: "#8b949e", fontSize: 14 }}>
-                Results will appear here when the job completes.
-              </p>
-            )}
-          </div>
+          <ResultsTab
+            status={runStatus}
+            ppa={run?.ppa as Record<string, unknown> | null | undefined}
+            runId={runId}
+            artifacts={runStatus === "complete" ? artifacts : null}
+          />
         )}
 
-        {/* Config tab — raw config JSONB with copy button */}
         {activeTab === "config" && (
-          <div style={{ padding: 24, overflowY: "auto" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
-              <h3 style={{ color: "#f0f6fc", fontSize: 15, margin: 0 }}>Config Snapshot</h3>
-              {run?.config && (
-                <button
-                  onClick={handleCopyConfig}
-                  style={{
-                    padding: "4px 10px",
-                    background: copyDone ? "#1f4022" : "#21262d",
-                    color: copyDone ? "#3fb950" : "#8b949e",
-                    border: "1px solid #30363d",
-                    borderRadius: 6,
-                    cursor: "pointer",
-                    fontSize: 12,
-                    fontWeight: 500,
-                  }}
-                >
-                  {copyDone ? "Copied!" : "Copy"}
-                </button>
-              )}
-            </div>
-            {run?.config != null ? (
-              <pre
-                style={{
-                  background: "#161b22",
-                  border: "1px solid #30363d",
-                  borderRadius: 6,
-                  padding: 16,
-                  fontSize: 12,
-                  fontFamily: "monospace",
-                  color: "#c9d1d9",
-                  overflow: "auto",
-                  maxHeight: "60vh",
-                  margin: 0,
-                }}
-              >
-                {JSON.stringify(run.config, null, 2)}
-              </pre>
-            ) : (
-              <p style={{ color: "#8b949e", fontSize: 13 }}>
-                No config snapshot available for this run.
-              </p>
-            )}
-          </div>
+          <ConfigTab config={run?.config as Record<string, unknown> | null | undefined} />
         )}
 
-        {/* AI tab — multi-turn context-aware chat */}
         {activeTab === "ai" && (
           <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minHeight: 0 }}>
             <AiChatTab runId={runId ?? ""} run={run} />

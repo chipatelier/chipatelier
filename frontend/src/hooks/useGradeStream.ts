@@ -4,7 +4,8 @@
  * Connects to the grade stream endpoint and waits for a single JSON message
  * containing the evaluation result. Closes the connection after receipt.
  *
- * Mirrors the useLogStream.ts pattern — same token refresh, same WS lifecycle.
+ * If the connection drops before a grade is received, retries with exponential
+ * backoff (up to WS_MAX_RECONNECT_ATTEMPTS).
  *
  * WS URL: /api/v1/ws/runs/{runId}/grade/stream?token={accessToken}
  *
@@ -14,9 +15,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useStore } from "../store";
 import { refresh } from "../api/auth";
 import { GradeResult } from "../store/courseSlice";
+import {
+  WS_RECONNECT_BASE_MS,
+  WS_RECONNECT_MAX_MS,
+  WS_MAX_RECONNECT_ATTEMPTS,
+  TOKEN_EXPIRY_BUFFER_SECS,
+} from "../constants";
 
 /** Decode JWT exp field client-side (no verification — just to check expiry). */
-function isTokenExpiredOrExpiring(token: string, bufferSecs = 60): boolean {
+function isTokenExpiredOrExpiring(token: string, bufferSecs = TOKEN_EXPIRY_BUFFER_SECS): boolean {
   try {
     const payload = JSON.parse(atob(token.split(".")[1]));
     if (typeof payload.exp !== "number") return true;
@@ -35,7 +42,10 @@ export function useGradeStream(runId: string | null): {
   const [gradeResult, setLocalGradeResult] = useState<GradeResult | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
+  const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const unmountedRef = useRef(false);
+  const attemptRef = useRef(0);
+  const receivedRef = useRef(false);
 
   const connect = useCallback(async () => {
     if (!runId || !accessToken || unmountedRef.current) return;
@@ -64,7 +74,10 @@ export function useGradeStream(runId: string | null): {
     wsRef.current = ws;
 
     ws.onopen = () => {
-      if (!unmountedRef.current) setIsConnected(true);
+      if (!unmountedRef.current) {
+        setIsConnected(true);
+        attemptRef.current = 0;
+      }
     };
 
     ws.onmessage = (event: MessageEvent) => {
@@ -72,6 +85,7 @@ export function useGradeStream(runId: string | null): {
         try {
           const result = JSON.parse(event.data) as GradeResult;
           if (!unmountedRef.current) {
+            receivedRef.current = true;
             setLocalGradeResult(result);
             setGradeResult(runId, result);
           }
@@ -84,8 +98,16 @@ export function useGradeStream(runId: string | null): {
     };
 
     ws.onclose = () => {
-      if (!unmountedRef.current) {
-        setIsConnected(false);
+      if (unmountedRef.current) return;
+      setIsConnected(false);
+      // Retry if we haven't received the grade yet
+      if (!receivedRef.current && attemptRef.current < WS_MAX_RECONNECT_ATTEMPTS) {
+        const delay = Math.min(
+          WS_RECONNECT_BASE_MS * Math.pow(2, attemptRef.current),
+          WS_RECONNECT_MAX_MS
+        );
+        attemptRef.current += 1;
+        reconnectTimer.current = setTimeout(connect, delay);
       }
     };
 
@@ -96,11 +118,16 @@ export function useGradeStream(runId: string | null): {
 
   useEffect(() => {
     unmountedRef.current = false;
+    receivedRef.current = false;
+    attemptRef.current = 0;
     setLocalGradeResult(null);
     connect();
 
     return () => {
       unmountedRef.current = true;
+      if (reconnectTimer.current) {
+        clearTimeout(reconnectTimer.current);
+      }
       if (wsRef.current) {
         wsRef.current.close();
         wsRef.current = null;
