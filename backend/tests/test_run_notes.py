@@ -51,7 +51,7 @@ def _create_run(async_session, proj_id):
         run = Run(
             project_id=uuid.UUID(proj_id),
             status="queued",
-            target_stage="gds",
+            target_stage="finish",
             queue_priority="normal",
         )
         async_session.add(run)
@@ -77,7 +77,7 @@ def test_patch_notes_owner(test_client, async_session):
         run = Run(
             project_id=uuid.UUID(proj_id),
             status="queued",
-            target_stage="gds",
+            target_stage="finish",
             queue_priority="normal",
         )
         async_session.add(run)
@@ -107,7 +107,7 @@ def test_patch_notes_wrong_user_returns_403(test_client, async_session):
         run = Run(
             project_id=uuid.UUID(proj_id),
             status="queued",
-            target_stage="gds",
+            target_stage="finish",
             queue_priority="normal",
         )
         async_session.add(run)
@@ -135,7 +135,7 @@ def test_run_list_excludes_notes(test_client, async_session):
         run = Run(
             project_id=uuid.UUID(proj_id),
             status="queued",
-            target_stage="gds",
+            target_stage="finish",
             queue_priority="normal",
             notes="secret note",
         )
@@ -177,7 +177,7 @@ def test_patch_notes_clears_with_null(test_client, async_session):
         run = Run(
             project_id=uuid.UUID(proj_id),
             status="queued",
-            target_stage="gds",
+            target_stage="finish",
             queue_priority="normal",
             notes="initial note",
         )

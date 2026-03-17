@@ -1,6 +1,9 @@
 """
 JOB-04 unit tests for the log_parser service.
 Tests stage detection and separator formatting.
+
+Stage detection parses the reliable ORFS format:
+    Running <script>.tcl, stage <stage_id>
 """
 import pytest
 
@@ -8,47 +11,52 @@ from app.services.log_parser import detect_stage, format_stage_separator
 
 
 # ---------------------------------------------------------------------------
-# detect_stage tests
+# detect_stage tests — real ORFS log lines
 # ---------------------------------------------------------------------------
 
-def test_detect_stage_synthesis_starting():
-    """detect_stage recognizes synthesis start line."""
-    assert detect_stage("Starting synthesis in OpenROAD...") == "synthesis"
+def test_detect_stage_synthesis():
+    """detect_stage recognizes synthesis stage line."""
+    assert detect_stage("Running yosys.tcl, stage 1_2_yosys") == "synthesis"
 
 
-def test_detect_stage_synthesis_finished():
-    """detect_stage recognizes synthesis finish line."""
-    assert detect_stage("Finished synthesis step") == "synthesis"
-
-
-def test_detect_stage_route_starting():
-    """detect_stage recognizes routing start line."""
-    assert detect_stage("Starting routing phase") == "route"
-
-
-def test_detect_stage_route_finished():
-    """detect_stage recognizes routing finish line."""
-    assert detect_stage("Finished routing") == "route"
+def test_detect_stage_synthesis_canonicalize():
+    """detect_stage recognizes synthesis canonicalize sub-stage."""
+    assert detect_stage("Running yosys_canonicalize.tcl, stage 1_1_yosys") == "synthesis"
 
 
 def test_detect_stage_floorplan():
-    """detect_stage recognizes floorplan lines."""
-    assert detect_stage("Starting floorplan step") == "floorplan"
+    """detect_stage recognizes floorplan stage line."""
+    assert detect_stage("Running floorplan.tcl, stage 2_1_floorplan") == "floorplan"
 
 
 def test_detect_stage_place():
-    """detect_stage recognizes placement lines."""
-    assert detect_stage("Starting placement optimization") == "place"
+    """detect_stage recognizes placement stage line."""
+    assert detect_stage("Running global_place.tcl, stage 3_3_place_gp") == "place"
+
+
+def test_detect_stage_place_dp():
+    """detect_stage recognizes detail placement stage line."""
+    assert detect_stage("Running detail_place.tcl, stage 3_5_place_dp") == "place"
 
 
 def test_detect_stage_cts():
-    """detect_stage recognizes CTS lines."""
-    assert detect_stage("Starting cts phase") == "cts"
+    """detect_stage recognizes CTS stage line."""
+    assert detect_stage("Running cts.tcl, stage 4_1_cts") == "cts"
 
 
-def test_detect_stage_gds():
-    """detect_stage recognizes GDS/final lines."""
-    assert detect_stage("Starting final gds export") == "gds"
+def test_detect_stage_global_route():
+    """detect_stage recognizes global route stage line."""
+    assert detect_stage("Running global_route.tcl, stage 5_1_grt") == "route"
+
+
+def test_detect_stage_detail_route():
+    """detect_stage recognizes detail route stage line."""
+    assert detect_stage("Running detail_route.tcl, stage 5_2_route") == "route"
+
+
+def test_detect_stage_finish():
+    """detect_stage recognizes final report stage line."""
+    assert detect_stage("Running final_report.tcl, stage 6_report") == "finish"
 
 
 def test_detect_stage_no_match():
@@ -61,10 +69,9 @@ def test_detect_stage_empty_line():
     assert detect_stage("") is None
 
 
-def test_detect_stage_case_insensitive():
-    """detect_stage is case-insensitive."""
-    assert detect_stage("STARTING SYNTHESIS") == "synthesis"
-    assert detect_stage("FINISHED ROUTING") == "route"
+def test_detect_stage_openroad_info_line():
+    """detect_stage returns None for normal OpenROAD log lines."""
+    assert detect_stage("[INFO FLW-0012] Running floorplan...") is None
 
 
 # ---------------------------------------------------------------------------
@@ -87,5 +94,5 @@ def test_format_stage_separator_route():
 
 def test_format_stage_separator_uppercase_input():
     """format_stage_separator handles uppercase stage name."""
-    result = format_stage_separator("GDS")
-    assert "GDS" in result
+    result = format_stage_separator("FINISH")
+    assert "FINISH" in result

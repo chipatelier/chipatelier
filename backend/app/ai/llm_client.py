@@ -128,6 +128,6 @@ def get_llm_client() -> LLMClient:
     if settings.LLM_BACKEND == "anthropic":
         return AnthropicClient(api_key=settings.ANTHROPIC_API_KEY)
     if settings.LLM_BACKEND == "openai":
-        return OpenAIClient(api_key=settings.ANTHROPIC_API_KEY)  # placeholder
+        return OpenAIClient(api_key=getattr(settings, "OPENAI_API_KEY", ""))
     # Default: Ollama (local inference)
     return OllamaClient(base_url=settings.OLLAMA_BASE_URL, model=settings.OLLAMA_MODEL)
