@@ -1,3 +1,4 @@
+import React from "react";
 import { CURATED_PARAMS } from "./ParamMetadata";
 
 interface ParamFormProps {
@@ -6,6 +7,74 @@ interface ParamFormProps {
   lockedParams: Record<string, string>;
   editableParams: string[]; // empty = all curated params editable
 }
+
+const FORM: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: 16,
+  padding: 16,
+};
+
+const ROW: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: 4,
+};
+
+const ROW_HEADER: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+};
+
+const LABEL: React.CSSProperties = {
+  fontWeight: 500,
+  fontSize: 13,
+  color: "#e6edf3",
+};
+
+const LOCKED_BADGE: React.CSSProperties = {
+  fontSize: 11,
+  background: "#2d2a1a",
+  color: "#e3b341",
+  padding: "2px 8px",
+  borderRadius: 4,
+};
+
+const INPUT_ROW: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+};
+
+function inputStyle(locked: boolean): React.CSSProperties {
+  return {
+    border: "1px solid #30363d",
+    borderRadius: 6,
+    padding: "4px 8px",
+    width: 128,
+    background: locked ? "#21262d" : "#0d1117",
+    color: locked ? "#6e7681" : "#e6edf3",
+    cursor: locked ? "not-allowed" : "text",
+    fontSize: 13,
+    outline: "none",
+  };
+}
+
+const UNIT: React.CSSProperties = {
+  fontSize: 11,
+  color: "#8b949e",
+};
+
+const RANGE: React.CSSProperties = {
+  fontSize: 11,
+  color: "#6e7681",
+};
+
+const DESC: React.CSSProperties = {
+  fontSize: 11,
+  color: "#8b949e",
+};
 
 export function ParamForm({
   values,
@@ -21,28 +90,28 @@ export function ParamForm({
       : CURATED_PARAMS;
 
   return (
-    <div className="param-form space-y-4 p-4">
+    <div style={FORM}>
       {visibleParams.map((param) => {
         const isLocked = param.key in lockedParams;
         const value = isLocked
           ? lockedParams[param.key]
           : (values[param.key] ?? "");
         return (
-          <div key={param.key} className="param-row flex flex-col gap-1">
-            <div className="flex items-center gap-2">
+          <div key={param.key} style={ROW}>
+            <div style={ROW_HEADER}>
               <label
                 htmlFor={`param-${param.key}`}
-                className="font-medium text-sm"
+                style={LABEL}
               >
                 {param.label}
               </label>
               {isLocked && (
-                <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded">
+                <span style={LOCKED_BADGE}>
                   Locked by instructor
                 </span>
               )}
             </div>
-            <div className="flex items-center gap-2">
+            <div style={INPUT_ROW}>
               <input
                 id={`param-${param.key}`}
                 type="number"
@@ -54,21 +123,17 @@ export function ParamForm({
                 onChange={(e) =>
                   !isLocked && onChange(param.key, e.target.value)
                 }
-                className={`border rounded px-2 py-1 w-32 ${
-                  isLocked
-                    ? "bg-gray-100 text-gray-500 cursor-not-allowed"
-                    : ""
-                }`}
+                style={inputStyle(isLocked)}
                 aria-label={param.label}
               />
               {param.unit && (
-                <span className="text-xs text-gray-500">{param.unit}</span>
+                <span style={UNIT}>{param.unit}</span>
               )}
-              <span className="text-xs text-gray-400">
+              <span style={RANGE}>
                 {param.min}–{param.max}
               </span>
             </div>
-            <p className="text-xs text-gray-500">{param.description}</p>
+            <p style={DESC}>{param.description}</p>
           </div>
         );
       })}

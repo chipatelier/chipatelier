@@ -37,7 +37,7 @@ const METRICS: Array<{ key: string; label: string; higherBetter: boolean }> = [
 // Color coding helper
 // ---------------------------------------------------------------------------
 
-function colorClass(
+function colorTag(
   value: number,
   values: number[],
   higherBetter: boolean
@@ -46,12 +46,11 @@ function colorClass(
   const sorted = [...values].sort((a, b) =>
     higherBetter ? b - a : a - b
   );
-  if (value === sorted[0]) return "bg-green-100 text-green-800";
-  if (value === sorted[sorted.length - 1]) return "bg-red-100 text-red-800";
-  return "bg-yellow-50 text-yellow-800";
+  if (value === sorted[0]) return "green";
+  if (value === sorted[sorted.length - 1]) return "red";
+  return "yellow";
 }
 
-// Inline style equivalents for environments without Tailwind
 function colorStyle(
   value: number,
   values: number[],
@@ -197,16 +196,15 @@ export function RunComparison({ runs }: Props) {
                           ...colorStyle(val as number, values, metric.higherBetter),
                         }
                       : { ...cellStyle, color: "#6e7681" };
-                    // Combine color class for test targeting (Tailwind-like className)
-                    const cssClass = hasValue
-                      ? colorClass(val as number, values, metric.higherBetter)
+                    const tag = hasValue
+                      ? colorTag(val as number, values, metric.higherBetter)
                       : "";
 
                     return (
                       <td
                         key={run.id}
                         style={style}
-                        className={cssClass}
+                        data-color={tag || undefined}
                         data-metric={metric.key}
                       >
                         {hasValue

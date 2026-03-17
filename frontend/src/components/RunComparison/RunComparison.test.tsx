@@ -23,8 +23,8 @@ describe("RunComparison", () => {
     // r2 has worse WNS, should have red class
     const cells = container.querySelectorAll("[data-metric='worst_negative_slack']");
     expect(cells.length).toBe(2);
-    expect(cells[0].className).toContain("green");
-    expect(cells[1].className).toContain("red");
+    expect(cells[0].getAttribute("data-color")).toBe("green");
+    expect(cells[1].getAttribute("data-color")).toBe("red");
   });
 
   it("renders config differences section for params that differ", () => {
