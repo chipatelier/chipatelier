@@ -1,6 +1,6 @@
 """User ORM model."""
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import BigInteger, Boolean, DateTime, String, text
 from sqlalchemy.dialects.postgresql import UUID
@@ -27,7 +27,7 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
-        default=datetime.utcnow,
+        default=lambda: datetime.now(timezone.utc),
     )
     last_login_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True

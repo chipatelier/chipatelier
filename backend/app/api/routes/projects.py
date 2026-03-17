@@ -25,7 +25,7 @@ from app.services.storage_service import StorageService, get_storage_service
 router = APIRouter(prefix="/projects", tags=["projects"])
 
 # Allowed file extensions for design uploads
-_ALLOWED_EXTENSIONS = {".v", ".sv", ".mk"}
+_ALLOWED_EXTENSIONS = {".v", ".sv", ".mk", ".sdc"}
 
 
 def _check_ownership(project: Project, user: User) -> None:

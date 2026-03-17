@@ -4,7 +4,7 @@ from uuid import uuid4
 
 import jwt
 from argon2 import PasswordHasher
-from argon2.exceptions import VerifyMismatchError, VerifyMismatchError
+from argon2.exceptions import VerifyMismatchError
 
 from app.core.config import get_settings
 

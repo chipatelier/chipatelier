@@ -1,6 +1,6 @@
 """CourseEnrollment ORM model — links a student user to a course."""
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import DateTime, ForeignKey, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import UUID
@@ -34,7 +34,7 @@ class CourseEnrollment(Base):
     enrolled_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
-        default=datetime.utcnow,
+        default=lambda: datetime.now(timezone.utc),
     )
 
     # Relationships

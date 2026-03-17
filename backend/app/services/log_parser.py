@@ -2,27 +2,41 @@
 Log parsing utilities for ORFS stage detection and separator formatting.
 
 Stage detection uses regex patterns against log lines from the ORFS toolchain.
-Patterns are calibrated against known ORFS log output; if no stage transition
-is detected in the first 200 lines, a warning is logged for pattern calibration.
+ORFS flow.sh prints a reliable marker before every stage:
+    Running <script>.tcl, stage <stage_id>
+Examples:
+    Running floorplan.tcl, stage 2_1_floorplan
+    Running cts.tcl, stage 4_1_cts
+    Running global_route.tcl, stage 5_1_grt
+    Running final_report.tcl, stage 6_report
 
-NOTE: The exact ORFS log format for stage boundaries is an open question.
-These patterns are initial hypotheses. During real ORFS runs, unmatched lines
-should be logged so patterns can be refined.
+The stage_id maps directly to the JSON metrics filename.
 """
 import re
 
 # ---------------------------------------------------------------------------
-# Stage transition patterns
-# Matches "Starting X" or "Finished X" log lines for each ORFS stage.
+# Stage transition pattern
+# Matches the reliable "Running <script>.tcl, stage <stage_id>" format
+# printed by flow.sh before every stage invocation.
 # ---------------------------------------------------------------------------
 
-STAGE_PATTERNS: dict[str, re.Pattern[str]] = {
-    "synthesis": re.compile(r"(Starting|Finished)\s+synthesis", re.IGNORECASE),
-    "floorplan": re.compile(r"(Starting|Finished)\s+floorplan", re.IGNORECASE),
-    "place":     re.compile(r"(Starting|Finished)\s+placement", re.IGNORECASE),
-    "cts":       re.compile(r"(Starting|Finished)\s+cts", re.IGNORECASE),
-    "route":     re.compile(r"(Starting|Finished)\s+routing", re.IGNORECASE),
-    "gds":       re.compile(r"(Starting|Finished)\s+final", re.IGNORECASE),
+_STAGE_LINE_RE = re.compile(r"Running\s+\S+\.tcl,\s+stage\s+(\S+)")
+
+# Map stage_id prefixes to friendly stage names
+_STAGE_ID_MAP: dict[str, str] = {
+    "1_1_yosys":      "synthesis",
+    "1_2_yosys":      "synthesis",
+    "2_1_floorplan":  "floorplan",
+    "3_1_place":      "place",
+    "3_3_place":      "place",
+    "3_4_place":      "place",
+    "3_5_place":      "place",
+    "4_1_cts":        "cts",
+    "5_1_grt":        "route",
+    "5_2_route":      "route",
+    "5_3_fillcell":   "route",
+    "6_report":       "finish",
+    "6_1_merge":      "finish",
 }
 
 # Separator format — the ═══ character is used so frontend can detect it visually
@@ -32,14 +46,26 @@ SEPARATOR_FMT = "═══ {stage} ═══════════════
 def detect_stage(line: str) -> str | None:
     """Return the ORFS stage name if `line` is a stage transition marker, else None.
 
+    Parses the reliable "Running <script>.tcl, stage <stage_id>" format
+    printed by ORFS flow.sh before every stage.
+
     Args:
         line: A single log line from ORFS stdout.
 
     Returns:
-        One of: "synthesis", "floorplan", "place", "cts", "route", "gds", or None.
+        One of: "synthesis", "floorplan", "place", "cts", "route", "finish",
+        or None if the line is not a stage transition marker.
     """
-    for stage, pattern in STAGE_PATTERNS.items():
-        if pattern.search(line):
+    m = _STAGE_LINE_RE.search(line)
+    if not m:
+        return None
+    stage_id = m.group(1)
+    # Exact match first, then try prefix match
+    if stage_id in _STAGE_ID_MAP:
+        return _STAGE_ID_MAP[stage_id]
+    # Prefix-based fallback for sub-stages not explicitly listed
+    for prefix, stage in _STAGE_ID_MAP.items():
+        if stage_id.startswith(prefix.split("_")[0] + "_"):
             return stage
     return None
 

@@ -12,7 +12,7 @@ import io
 import secrets
 import string
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
@@ -51,7 +51,7 @@ def generate_enrollment_code() -> str:
     Uses secrets.choice for cryptographic randomness.
     Alphabet excludes O, I (alpha) and 0 (digit) to prevent visual confusion.
     """
-    year = datetime.utcnow().year
+    year = datetime.now(timezone.utc).year
     segment = "".join(secrets.choice(_SAFE_ALPHABET) for _ in range(4))
     return f"VLSI-{year}-{segment}"
 
@@ -299,8 +299,8 @@ async def get_course_dashboard(
     queued = 0
     running = 0
     try:
-        from app.core.redis import get_redis_client
-        r = await get_redis_client()
+        from app.core.redis import get_redis
+        r = await get_redis()
         queued = await r.llen("orfs_jobs") or 0
     except Exception:
         pass
@@ -337,17 +337,27 @@ async def export_course_dashboard_csv(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
 
     # Fetch all submissions for this course's assignments with user info
-    result = await db.execute(
-        select(Submission, User)
-        .join(User, User.id == Submission.user_id)
-        .order_by(User.display_name, Submission.submitted_at.desc())
+    from app.models.assignment import Assignment as AssignmentModel
+    course_assignment_ids_result = await db.execute(
+        select(AssignmentModel.id).where(AssignmentModel.course_id == course_id)
     )
-    rows = result.all()
+    course_assignment_ids = [row[0] for row in course_assignment_ids_result.all()]
 
+    if not course_assignment_ids:
+        # No assignments — return empty CSV
+        result_rows: list = []
+    else:
+        result = await db.execute(
+            select(Submission, User)
+            .join(User, User.id == Submission.user_id)
+            .where(Submission.assignment_id.in_(course_assignment_ids))
+            .order_by(User.display_name, Submission.submitted_at.desc())
+        )
+        result_rows = result.all()
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow(["student_display_name", "submission_date", "score"])
-    for submission, student in rows:
+    for submission, student in result_rows:
         writer.writerow([
             student.display_name or student.email,
             submission.submitted_at.isoformat() if submission.submitted_at else "",
