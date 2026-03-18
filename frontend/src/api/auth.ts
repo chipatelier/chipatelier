@@ -63,3 +63,26 @@ export async function getMe(): Promise<UserResponse> {
   const { data } = await apiClient.get<UserResponse>("/users/me");
   return data;
 }
+
+/**
+ * Change the authenticated user's password.
+ * Throws on 400 (wrong current password / same password) or 422 (too short).
+ */
+export async function changePassword(
+  current_password: string,
+  new_password: string
+): Promise<void> {
+  await apiClient.post("/auth/change-password", { current_password, new_password });
+}
+
+/**
+ * Reset a forgotten password using an admin-issued one-time token.
+ * Throws on 400 (invalid/expired token) or 422 (too short).
+ */
+export async function resetPassword(
+  email: string,
+  token: string,
+  new_password: string
+): Promise<void> {
+  await apiClient.post("/auth/reset-password", { email, token, new_password });
+}
