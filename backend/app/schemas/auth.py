@@ -37,4 +37,5 @@ class UserResponse(BaseModel):
     display_name: str | None
     role: str
     storage_used_bytes: int
+    storage_quota_bytes: int | None = None
     created_at: datetime
