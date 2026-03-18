@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import Editor from "@monaco-editor/react";
 import { ParamForm } from "./ParamForm";
 import { AiAdvisorPanel } from "../AiAdvisorPanel";
@@ -34,6 +34,39 @@ function applyParamChange(
   return content + `\nexport ${key} = ${value}`;
 }
 
+const HEADER: React.CSSProperties = {
+  display: "flex",
+  gap: 8,
+  padding: 8,
+  borderBottom: "1px solid #30363d",
+  alignItems: "center",
+};
+
+function modeButtonStyle(active: boolean): React.CSSProperties {
+  return {
+    padding: "4px 12px",
+    borderRadius: 6,
+    fontSize: 13,
+    fontWeight: 500,
+    border: "none",
+    cursor: "pointer",
+    background: active ? "#1f6feb" : "#21262d",
+    color: active ? "#ffffff" : "#8b949e",
+  };
+}
+
+const AI_BUTTON: React.CSSProperties = {
+  marginLeft: "auto",
+  padding: "6px 14px",
+  fontSize: 12,
+  fontWeight: 600,
+  background: "#1e1433",
+  color: "#8b5cf6",
+  border: "1px solid #2d1f4a",
+  borderRadius: 6,
+  cursor: "pointer",
+};
+
 export function ConfigEditor({
   configContent,
   onChange,
@@ -50,43 +83,25 @@ export function ConfigEditor({
   };
 
   return (
-    <div className="config-editor flex flex-col h-full">
-      <div className="config-editor-header flex gap-2 p-2 border-b" style={{ alignItems: "center" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+      <div style={HEADER}>
         <button
           onClick={() => setMode("form")}
-          className={`px-3 py-1 rounded text-sm font-medium ${
-            mode === "form"
-              ? "bg-blue-600 text-white"
-              : "bg-gray-100 text-gray-700"
-          }`}
+          style={modeButtonStyle(mode === "form")}
           aria-pressed={mode === "form"}
         >
           Form
         </button>
         <button
           onClick={() => setMode("raw")}
-          className={`px-3 py-1 rounded text-sm font-medium ${
-            mode === "raw"
-              ? "bg-blue-600 text-white"
-              : "bg-gray-100 text-gray-700"
-          }`}
+          style={modeButtonStyle(mode === "raw")}
           aria-pressed={mode === "raw"}
         >
           Raw
         </button>
         <button
           onClick={() => setShowAdvisor(!showAdvisor)}
-          style={{
-            marginLeft: "auto",
-            padding: "6px 14px",
-            fontSize: 12,
-            fontWeight: 600,
-            background: "#1e1433",
-            color: "#8b5cf6",
-            border: "1px solid #2d1f4a",
-            borderRadius: 6,
-            cursor: "pointer",
-          }}
+          style={AI_BUTTON}
           aria-pressed={showAdvisor}
         >
           Get AI Suggestions ◆

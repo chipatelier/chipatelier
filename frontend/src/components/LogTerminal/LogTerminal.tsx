@@ -18,6 +18,7 @@ import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { useLogStream } from "../../hooks/useLogStream";
 import { AiExplainPanel } from "../AiExplainPanel";
+import { LOG_SCROLLBACK } from "../../constants";
 import "@xterm/xterm/css/xterm.css";
 
 interface LogTerminalProps {
@@ -36,7 +37,7 @@ export function LogTerminal({ runId, isRunning = true }: LogTerminalProps): Reac
   // Initialize terminal once on mount
   useEffect(() => {
     const term = new Terminal({
-      scrollback: 50000,
+      scrollback: LOG_SCROLLBACK,
       convertEol: true,
       theme: {
         background: "#0d1117",

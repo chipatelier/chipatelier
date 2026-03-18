@@ -13,8 +13,7 @@ import { useNavigate } from "react-router-dom";
 import { logout as authLogout } from "../api/auth";
 import { listProjects, createProject, ProjectResponse } from "../api/projects";
 import { useStore } from "../store";
-
-const QUOTA_GB = 5;
+import { DEFAULT_QUOTA_GB } from "../constants";
 
 export default function ProjectListPage(): React.ReactElement {
   const navigate = useNavigate();
@@ -29,6 +28,9 @@ export default function ProjectListPage(): React.ReactElement {
   const [creating, setCreating] = useState(false);
 
   const storageGB = user ? (user.storage_used_bytes / 1e9).toFixed(1) : "0.0";
+  const quotaGB = user?.storage_quota_bytes
+    ? (user.storage_quota_bytes / 1e9).toFixed(0)
+    : String(DEFAULT_QUOTA_GB);
 
   useEffect(() => {
     listProjects()
@@ -79,7 +81,7 @@ export default function ProjectListPage(): React.ReactElement {
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
           {user && (
             <span style={{ fontSize: 13, color: "#8b949e" }}>
-              {storageGB} GB of {QUOTA_GB} GB used
+              {storageGB} GB of {quotaGB} GB used
             </span>
           )}
           <button

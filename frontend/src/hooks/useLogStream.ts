@@ -7,7 +7,7 @@
  * Behavior:
  *   - On open: connection established, calls onLine for each received line
  *   - On message: calls onLine(event.data) for each text frame
- *   - On close (job still running): reconnects after 2s backoff
+ *   - On close (job still running): reconnects with exponential backoff
  *   - On unmount: closes WebSocket cleanly
  *
  * Returns: { connected: boolean }
@@ -15,11 +15,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useStore } from "../store";
 import { refresh } from "../api/auth";
-
-const RECONNECT_DELAY_MS = 2000;
+import {
+  WS_RECONNECT_BASE_MS,
+  WS_RECONNECT_MAX_MS,
+  WS_MAX_RECONNECT_ATTEMPTS,
+  TOKEN_EXPIRY_BUFFER_SECS,
+} from "../constants";
 
 /** Decode JWT exp field client-side (no verification — just to check expiry). */
-function isTokenExpiredOrExpiring(token: string, bufferSecs = 60): boolean {
+function isTokenExpiredOrExpiring(token: string, bufferSecs = TOKEN_EXPIRY_BUFFER_SECS): boolean {
   try {
     const payload = JSON.parse(atob(token.split(".")[1]));
     if (typeof payload.exp !== "number") return true;
@@ -45,6 +49,7 @@ export function useLogStream(
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const unmountedRef = useRef(false);
+  const attemptRef = useRef(0);
 
   // Stable callback ref — avoids stale closures in WS event handlers
   const onLineRef = useRef(onLine);
@@ -81,7 +86,10 @@ export function useLogStream(
     wsRef.current = ws;
 
     ws.onopen = () => {
-      if (!unmountedRef.current) setConnected(true);
+      if (!unmountedRef.current) {
+        setConnected(true);
+        attemptRef.current = 0; // Reset backoff on successful connection
+      }
     };
 
     ws.onmessage = (event: MessageEvent) => {
@@ -93,8 +101,13 @@ export function useLogStream(
     ws.onclose = () => {
       if (unmountedRef.current) return;
       setConnected(false);
-      if (reconnect) {
-        reconnectTimer.current = setTimeout(connect, RECONNECT_DELAY_MS);
+      if (reconnect && attemptRef.current < WS_MAX_RECONNECT_ATTEMPTS) {
+        const delay = Math.min(
+          WS_RECONNECT_BASE_MS * Math.pow(2, attemptRef.current),
+          WS_RECONNECT_MAX_MS
+        );
+        attemptRef.current += 1;
+        reconnectTimer.current = setTimeout(connect, delay);
       }
     };
 
@@ -105,6 +118,7 @@ export function useLogStream(
 
   useEffect(() => {
     unmountedRef.current = false;
+    attemptRef.current = 0;
     connect();
 
     return () => {

@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { setupTokenRefreshInterceptor } from "./hooks/useTokenRefresh";
 import { useStore } from "./store";
 import { getMe, refresh } from "./api/auth";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import ProjectListPage from "./pages/ProjectListPage";
@@ -78,6 +79,7 @@ export default function App(): React.ReactElement {
   }
 
   return (
+    <ErrorBoundary>
     <BrowserRouter>
       <Routes>
         {/* Public routes */}
@@ -114,5 +116,6 @@ export default function App(): React.ReactElement {
         <Route path="/" element={<Navigate to="/projects" replace />} />
       </Routes>
     </BrowserRouter>
+    </ErrorBoundary>
   );
 }

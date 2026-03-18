@@ -3,6 +3,94 @@ import { useNavigate, Link } from "react-router-dom";
 import { register, login, getMe } from "../api/auth";
 import { useStore } from "../store";
 
+const PAGE_BG: React.CSSProperties = {
+  minHeight: "100vh",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  background: "#0d1117",
+};
+
+const CARD: React.CSSProperties = {
+  width: "100%",
+  maxWidth: 420,
+  background: "#161b22",
+  borderRadius: 12,
+  border: "1px solid #30363d",
+  padding: 32,
+};
+
+const HEADING: React.CSSProperties = {
+  fontSize: 22,
+  fontWeight: 700,
+  color: "#e6edf3",
+  marginBottom: 24,
+};
+
+const ERROR_BOX: React.CSSProperties = {
+  marginBottom: 16,
+  borderRadius: 6,
+  background: "#3d1f1f",
+  border: "1px solid #6e3630",
+  color: "#f85149",
+  padding: "12px 16px",
+  fontSize: 13,
+};
+
+const LABEL: React.CSSProperties = {
+  display: "block",
+  fontSize: 13,
+  fontWeight: 500,
+  color: "#8b949e",
+  marginBottom: 4,
+};
+
+const HINT: React.CSSProperties = {
+  color: "#6e7681",
+};
+
+const INPUT: React.CSSProperties = {
+  width: "100%",
+  borderRadius: 6,
+  border: "1px solid #30363d",
+  background: "#0d1117",
+  color: "#e6edf3",
+  padding: "8px 12px",
+  fontSize: 14,
+  outline: "none",
+  boxSizing: "border-box",
+};
+
+const BUTTON: React.CSSProperties = {
+  width: "100%",
+  borderRadius: 6,
+  background: "#238636",
+  color: "#ffffff",
+  padding: "10px 16px",
+  fontSize: 14,
+  fontWeight: 600,
+  border: "none",
+  cursor: "pointer",
+};
+
+const BUTTON_DISABLED: React.CSSProperties = {
+  ...BUTTON,
+  opacity: 0.5,
+  cursor: "not-allowed",
+};
+
+const FOOTER: React.CSSProperties = {
+  marginTop: 16,
+  fontSize: 13,
+  textAlign: "center",
+  color: "#8b949e",
+};
+
+const LINK: React.CSSProperties = {
+  color: "#58a6ff",
+  textDecoration: "none",
+};
+
 export default function RegisterPage(): React.ReactElement {
   const navigate = useNavigate();
   const setAuth = useStore((s) => s.setAuth);
@@ -37,20 +125,16 @@ export default function RegisterPage(): React.ReactElement {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="w-full max-w-md bg-white rounded-xl shadow-md p-8">
-        <h1 className="text-2xl font-bold text-gray-900 mb-6">Create your account</h1>
+    <div style={PAGE_BG}>
+      <div style={CARD}>
+        <h1 style={HEADING}>Create your account</h1>
 
-        {error && (
-          <div className="mb-4 rounded-md bg-red-50 border border-red-200 text-red-700 px-4 py-3 text-sm">
-            {error}
-          </div>
-        )}
+        {error && <div style={ERROR_BOX}>{error}</div>}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div>
-            <label htmlFor="displayName" className="block text-sm font-medium text-gray-700 mb-1">
-              Display name <span className="text-gray-400">(optional)</span>
+            <label htmlFor="displayName" style={LABEL}>
+              Display name <span style={HINT}>(optional)</span>
             </label>
             <input
               id="displayName"
@@ -58,12 +142,12 @@ export default function RegisterPage(): React.ReactElement {
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
               autoComplete="name"
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              style={INPUT}
             />
           </div>
 
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="email" style={LABEL}>
               Email
             </label>
             <input
@@ -73,13 +157,13 @@ export default function RegisterPage(): React.ReactElement {
               onChange={(e) => setEmail(e.target.value)}
               required
               autoComplete="email"
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              style={INPUT}
             />
           </div>
 
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-              Password <span className="text-gray-400">(min 8 characters)</span>
+            <label htmlFor="password" style={LABEL}>
+              Password <span style={HINT}>(min 8 characters)</span>
             </label>
             <input
               id="password"
@@ -89,22 +173,22 @@ export default function RegisterPage(): React.ReactElement {
               required
               minLength={8}
               autoComplete="new-password"
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              style={INPUT}
             />
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-md bg-blue-600 text-white py-2 px-4 text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            style={loading ? BUTTON_DISABLED : BUTTON}
           >
             {loading ? "Creating account..." : "Create account"}
           </button>
         </form>
 
-        <p className="mt-4 text-sm text-center text-gray-500">
+        <p style={FOOTER}>
           Already have an account?{" "}
-          <Link to="/login" className="text-blue-600 hover:underline">
+          <Link to="/login" style={LINK}>
             Sign in
           </Link>
         </p>
