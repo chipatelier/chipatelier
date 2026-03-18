@@ -63,18 +63,28 @@ def require_role(*roles: str):
     return _check
 
 
-async def rate_limit(request: Request, redis=Depends(get_redis)) -> None:
-    """Allow at most 10 requests per IP per 10 minutes.
+def rate_limit(key_prefix: str, limit: int = 10, window_seconds: int = 600):
+    """Dependency factory: IP-based fixed-window rate limiter.
+
+    Args:
+        key_prefix: Redis key namespace (e.g. "pwreset"). Becomes ratelimit:{key_prefix}:{ip}.
+        limit: Maximum requests allowed per window (default 10).
+        window_seconds: Window duration in seconds (default 600 = 10 minutes).
 
     Reads real client IP from X-Forwarded-For set by Nginx.
-    Uses INCR + EXPIRE (fixed window) — sufficient for password reset.
+    Uses INCR + EXPIRE (fixed window).
     """
-    forwarded_for = request.headers.get("X-Forwarded-For")
-    ip = forwarded_for.split(",")[0].strip() if forwarded_for else (request.client.host or "unknown")
-    key = f"ratelimit:reset:{ip}"
-    count = await redis.incr(key)
-    if count == 1:
-        # Set TTL only on first increment to avoid extending window on every request
-        await redis.expire(key, 600)
-    if count > 10:
-        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Too many attempts. Try again later.")
+    async def _check(request: Request, redis=Depends(get_redis)) -> None:
+        forwarded_for = request.headers.get("X-Forwarded-For")
+        ip = forwarded_for.split(",")[0].strip() if forwarded_for else (request.client.host or "unknown")
+        key = f"ratelimit:{key_prefix}:{ip}"
+        count = await redis.incr(key)
+        if count == 1:
+            await redis.expire(key, window_seconds)
+        if count > limit:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Too many attempts. Try again later.",
+            )
+
+    return _check

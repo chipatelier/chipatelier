@@ -32,6 +32,8 @@ from app.schemas.auth import (
 router = APIRouter()
 settings = get_settings()
 
+_reset_rate_limit = rate_limit("pwreset")
+
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)) -> User:
@@ -223,7 +225,7 @@ async def reset_password(
     body: ResetPasswordRequest,
     db: AsyncSession = Depends(get_db),
     redis=Depends(get_redis),
-    _: None = Depends(rate_limit),
+    _: None = Depends(_reset_rate_limit),
 ) -> None:
     """Reset a forgotten password using an admin-issued one-time token.
 

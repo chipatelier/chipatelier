@@ -309,7 +309,7 @@ async def test_reset_password_success(test_client, async_session, mock_redis):
     import hmac
     from app.main import app
     from app.core.redis import get_redis
-    from app.api.deps import rate_limit
+    from app.api.routes.auth import _reset_rate_limit
 
     async def override_redis():
         return mock_redis
@@ -318,7 +318,7 @@ async def test_reset_password_success(test_client, async_session, mock_redis):
         return None  # disable rate limiting in tests
 
     app.dependency_overrides[get_redis] = override_redis
-    app.dependency_overrides[rate_limit] = override_rate_limit
+    app.dependency_overrides[_reset_rate_limit] = override_rate_limit
     try:
         test_client.post(
             "/api/v1/auth/register",
@@ -357,7 +357,7 @@ async def test_reset_password_invalid_token(test_client, mock_redis):
     """RESET-PW-02: Wrong token returns 400 with generic message."""
     from app.main import app
     from app.core.redis import get_redis
-    from app.api.deps import rate_limit
+    from app.api.routes.auth import _reset_rate_limit
 
     async def override_redis():
         return mock_redis
@@ -366,7 +366,7 @@ async def test_reset_password_invalid_token(test_client, mock_redis):
         return None
 
     app.dependency_overrides[get_redis] = override_redis
-    app.dependency_overrides[rate_limit] = override_rate_limit
+    app.dependency_overrides[_reset_rate_limit] = override_rate_limit
     try:
         test_client.post(
             "/api/v1/auth/register",
@@ -393,7 +393,7 @@ async def test_reset_password_no_token_in_redis(test_client, mock_redis):
     """RESET-PW-03: No token in Redis (expired or never set) returns 400."""
     from app.main import app
     from app.core.redis import get_redis
-    from app.api.deps import rate_limit
+    from app.api.routes.auth import _reset_rate_limit
 
     async def override_redis():
         return mock_redis
@@ -402,7 +402,7 @@ async def test_reset_password_no_token_in_redis(test_client, mock_redis):
         return None
 
     app.dependency_overrides[get_redis] = override_redis
-    app.dependency_overrides[rate_limit] = override_rate_limit
+    app.dependency_overrides[_reset_rate_limit] = override_rate_limit
     try:
         resp = test_client.post(
             "/api/v1/auth/reset-password",
@@ -423,7 +423,7 @@ async def test_reset_password_too_short(test_client, mock_redis):
     """RESET-PW-04: new_password < 8 chars returns 422."""
     from app.main import app
     from app.core.redis import get_redis
-    from app.api.deps import rate_limit
+    from app.api.routes.auth import _reset_rate_limit
 
     async def override_redis():
         return mock_redis
@@ -432,7 +432,7 @@ async def test_reset_password_too_short(test_client, mock_redis):
         return None
 
     app.dependency_overrides[get_redis] = override_redis
-    app.dependency_overrides[rate_limit] = override_rate_limit
+    app.dependency_overrides[_reset_rate_limit] = override_rate_limit
     try:
         resp = test_client.post(
             "/api/v1/auth/reset-password",
@@ -448,7 +448,7 @@ async def test_reset_password_token_consumed_atomically(test_client, mock_redis)
     """RESET-PW-05: Token is deleted atomically — a second request with the same token fails."""
     from app.main import app
     from app.core.redis import get_redis
-    from app.api.deps import rate_limit
+    from app.api.routes.auth import _reset_rate_limit
 
     async def override_redis():
         return mock_redis
@@ -457,7 +457,7 @@ async def test_reset_password_token_consumed_atomically(test_client, mock_redis)
         return None
 
     app.dependency_overrides[get_redis] = override_redis
-    app.dependency_overrides[rate_limit] = override_rate_limit
+    app.dependency_overrides[_reset_rate_limit] = override_rate_limit
     try:
         test_client.post(
             "/api/v1/auth/register",

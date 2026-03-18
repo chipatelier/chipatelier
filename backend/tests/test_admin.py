@@ -161,12 +161,12 @@ async def test_admin_reset_token_overwrites_existing(test_client, async_session,
         assert stored == token2  # latest token wins
 
         # Verify old token (token1) is now rejected by reset-password
-        from app.api.deps import rate_limit
+        from app.api.routes.auth import _reset_rate_limit
 
         async def override_rate_limit():
             return None
 
-        app.dependency_overrides[rate_limit] = override_rate_limit
+        app.dependency_overrides[_reset_rate_limit] = override_rate_limit
         reject_resp = test_client.post(
             "/api/v1/auth/reset-password",
             json={
