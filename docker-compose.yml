@@ -6,7 +6,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
       POSTGRES_DB: ${POSTGRES_DB:-chipatelier}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - ${DATA_ROOT}/postgres:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-chipatelier}"]
       interval: 10s
@@ -16,6 +16,9 @@ services:
 
   redis:
     image: redis:7-alpine
+    command: redis-server --save 60 1 --appendonly yes
+    volumes:
+      - ${DATA_ROOT}/redis:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -30,7 +33,7 @@ services:
       MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
     volumes:
-      - minio_data:/data
+      - ${DATA_ROOT}/minio:/data
     ports:
       - "9001:9001"
     healthcheck:
@@ -39,6 +42,39 @@ services:
       timeout: 20s
       retries: 3
     restart: unless-stopped
+
+  # AI inference service — optional, activate with: docker compose --profile ollama up
+  # Skip this profile if you have an external Ollama instance; set OLLAMA_BASE_URL in .env.
+  # Volume: mounted at /ollama (not /root/.ollama) to avoid the /root directory 700
+  # permission problem. OLLAMA_MODELS tells Ollama to use this path instead of ~/.ollama.
+  ollama:
+    image: ollama/ollama:latest
+    profiles:
+      - ollama
+    volumes:
+      - ${DATA_ROOT}/ollama:/ollama
+    ports:
+      # Bind to localhost only — Ollama API must not be reachable from outside the host.
+      - "127.0.0.1:11434:11434"
+    environment:
+      # Store models at /ollama instead of /root/.ollama — avoids the /root 700
+      # permission issue that prevents Docker from writing to the named volume.
+      - OLLAMA_MODELS=/ollama
+      # OLLAMA_HOST must be 0.0.0.0 so the container listens on all interfaces
+      # (the localhost-only restriction is enforced by the port binding above).
+      - OLLAMA_HOST=0.0.0.0:11434
+      # Limit to one loaded model at a time — prevents multiple large models
+      # from accumulating in RAM on a CPU-constrained server.
+      - OLLAMA_MAX_LOADED_MODELS=1
+    restart: unless-stopped
+    # Uncomment to enable GPU acceleration (requires NVIDIA Container Toolkit):
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
 
   backend:
     build:
@@ -56,9 +92,6 @@ services:
     environment:
       - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-chipatelier}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-chipatelier}
       - REDIS_URL=redis://redis:6379/0
-    extra_hosts:
-      # Allows the backend to reach the existing di_ollama service on the host.
-      - "host.docker.internal:host-gateway"
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000
     restart: unless-stopped
 
@@ -81,10 +114,16 @@ services:
       - REDIS_URL=redis://redis:6379/0
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - artifacts_data:/data/artifacts
+      - ${DATA_ROOT}/artifacts:/data/artifacts
+      # Workspace scratch dir must be a host bind-mount (not a named volume).
+      # Worker writes workspace files here; Docker API references this same HOST
+      # path when mounting into ORFS job containers.
+      - ${WORKSPACE_ROOT}:/tmp/chipatelier_workspaces
     restart: unless-stopped
 
   # Background workers — dedicated queue for tiles, grading, AI hints
+  # Also runs Celery Beat (--beat) to dispatch periodic tasks (drain_queue, watchdog).
+  # Safe to combine because only one background-worker instance ever runs.
   background-worker:
     build:
       context: ./worker
@@ -92,6 +131,7 @@ services:
       celery -A celery_app worker
       -Q background
       -c ${BACKGROUND_WORKER_CONCURRENCY:-2}
+      --beat
       --loglevel=info
     depends_on:
       redis:
@@ -99,10 +139,8 @@ services:
     env_file: .env
     environment:
       - REDIS_URL=redis://redis:6379/0
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     volumes:
-      - artifacts_data:/data/artifacts
+      - ${DATA_ROOT}/artifacts:/data/artifacts
     restart: unless-stopped
 
   frontend:
@@ -138,9 +176,5 @@ services:
     profiles:
       - build-only  # Never started by docker compose up; image built for worker use
     volumes:
-      - artifacts_data:/artifacts:ro  # DEF/LEF files from ORFS job runs
+      - ${DATA_ROOT}/artifacts:/artifacts:ro  # DEF/LEF files from ORFS job runs
 
-volumes:
-  postgres_data:
-  minio_data:
-  artifacts_data:

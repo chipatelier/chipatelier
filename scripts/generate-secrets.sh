@@ -60,9 +60,14 @@ ACCESS_TOKEN_EXPIRE_MINUTES=15
 REFRESH_TOKEN_EXPIRE_DAYS=7
 VNC_TOKEN_SECRET=${VNC_TOKEN_SECRET}
 
+# ── Storage paths ─────────────────────────────────────────────────────────────
+# Set DATA_ROOT to your preferred storage mount before running docker compose up.
+# Run scripts/install.sh after setting these to create required directories.
+DATA_ROOT=/opt/apps/chipatelier/data
+WORKSPACE_ROOT=/tmp/chipatelier_workspaces
+
 # ── OpenROAD ──────────────────────────────────────────────────────────────────
 ORFS_IMAGE=openroad/orfs:latest
-PDK_ROOT=/data/pdks
 ARTIFACTS_ROOT=/data/artifacts
 WARM_POOL_SIZE=2
 MAX_CONCURRENT_JOBS=8
