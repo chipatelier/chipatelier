@@ -15,7 +15,9 @@ Privacy constraint (CLAUDE.md):
 Phase 3 (Plan 02): explain + advisor endpoints wired to Ollama via llm_client.
 Phase 3 (Plan 03): chat endpoint wired with NDJSON streaming.
 """
+import asyncio
 import json
+import logging
 import re
 from uuid import UUID
 
@@ -75,29 +77,53 @@ class AdvisorResponse(BaseModel):
 # Helpers
 # ---------------------------------------------------------------------------
 
-async def safe_generate(prompt: str, max_tokens: int = 1024) -> str:
-    """Call llm_client.generate with 503 translation on connectivity errors.
+_log = logging.getLogger("chipatelier.ai")
 
-    Converts httpx connection/timeout errors and ollama library errors into
-    an HTTP 503 with a user-facing message. Other exceptions propagate normally.
+_CONNECT_ERRORS = (httpx.ConnectError, httpx.TimeoutException)
+_RETRY_ATTEMPTS = 3
+_RETRY_BACKOFF = 5  # seconds between retries
+
+
+def _is_ollama_error(exc: Exception) -> bool:
+    module = getattr(type(exc), "__module__", "") or ""
+    return "ollama" in module.lower()
+
+
+async def safe_generate(prompt: str, max_tokens: int = 1024) -> str:
+    """Call llm_client.generate, retrying if Ollama is still starting up.
+
+    On ConnectError/TimeoutException, retries up to _RETRY_ATTEMPTS times with
+    _RETRY_BACKOFF second delays — Ollama may need a moment to start after the
+    first request arrives (lazy or post-restart start). Only returns 503 once
+    all retries are exhausted.
     """
     llm = get_llm_client()
-    try:
-        return await llm.generate(prompt, max_tokens)
-    except (httpx.ConnectError, httpx.TimeoutException) as exc:
-        raise HTTPException(
-            status_code=503,
-            detail=_UNAVAILABLE_MSG,
-        ) from exc
-    except Exception as exc:
-        # Catch ollama library errors (ResponseError, RequestError etc.)
-        module = getattr(type(exc), "__module__", "") or ""
-        if "ollama" in module.lower():
-            raise HTTPException(
-                status_code=503,
-                detail=_UNAVAILABLE_MSG,
-            ) from exc
-        raise
+    last_exc: Exception | None = None
+
+    for attempt in range(1, _RETRY_ATTEMPTS + 1):
+        try:
+            return await llm.generate(prompt, max_tokens)
+        except _CONNECT_ERRORS as exc:
+            last_exc = exc
+            _log.warning(
+                "Ollama not reachable (attempt %d/%d), retrying in %ds: %s",
+                attempt, _RETRY_ATTEMPTS, _RETRY_BACKOFF, exc,
+            )
+            if attempt < _RETRY_ATTEMPTS:
+                await asyncio.sleep(_RETRY_BACKOFF)
+        except Exception as exc:
+            if _is_ollama_error(exc):
+                last_exc = exc
+                _log.warning(
+                    "Ollama error (attempt %d/%d), retrying in %ds: %s",
+                    attempt, _RETRY_ATTEMPTS, _RETRY_BACKOFF, exc,
+                )
+                if attempt < _RETRY_ATTEMPTS:
+                    await asyncio.sleep(_RETRY_BACKOFF)
+            else:
+                raise
+
+    raise HTTPException(status_code=503, detail=_UNAVAILABLE_MSG) from last_exc
 
 
 async def _get_run(run_id: UUID, db: AsyncSession) -> Run:
@@ -222,8 +248,36 @@ async def chat(
     llm = get_llm_client()
 
     async def generate_stream():
+        # Retry on connect errors — Ollama may be starting up on first request.
+        stream = None
+        for attempt in range(1, _RETRY_ATTEMPTS + 1):
+            try:
+                stream = await llm.chat_stream(messages)
+                break
+            except _CONNECT_ERRORS as exc:
+                _log.warning(
+                    "Ollama not reachable for chat (attempt %d/%d): %s",
+                    attempt, _RETRY_ATTEMPTS, exc,
+                )
+                if attempt < _RETRY_ATTEMPTS:
+                    await asyncio.sleep(_RETRY_BACKOFF)
+            except Exception as exc:
+                if _is_ollama_error(exc):
+                    _log.warning(
+                        "Ollama error for chat (attempt %d/%d): %s",
+                        attempt, _RETRY_ATTEMPTS, exc,
+                    )
+                    if attempt < _RETRY_ATTEMPTS:
+                        await asyncio.sleep(_RETRY_BACKOFF)
+                else:
+                    yield json.dumps({"error": _UNAVAILABLE_MSG}) + "\n"
+                    return
+
+        if stream is None:
+            yield json.dumps({"error": _UNAVAILABLE_MSG}) + "\n"
+            return
+
         try:
-            stream = await llm.chat_stream(messages)
             in_think = False
             think_buf = ""
             async for chunk in stream:
