@@ -5,6 +5,7 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.core.redis import get_redis
 from app.core.security import decode_token
 from app.models.user import User
 
@@ -60,9 +61,6 @@ def require_role(*roles: str):
         return user
 
     return _check
-
-
-from app.core.redis import get_redis
 
 
 async def rate_limit(request: Request, redis=Depends(get_redis)) -> None:
