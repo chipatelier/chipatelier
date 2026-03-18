@@ -58,7 +58,6 @@ const DROPDOWN_BTN: React.CSSProperties = {
 const DROPDOWN_MENU: React.CSSProperties = {
   position: "absolute",
   top: "100%",
-  right: 24,
   marginTop: 4,
   background: "#161b22",
   border: "1px solid #30363d",
