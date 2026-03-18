@@ -27,6 +27,13 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
 
 
+class ChangePasswordRequest(BaseModel):
+    """Request body for changing the authenticated user's password."""
+
+    current_password: str
+    new_password: str = Field(min_length=8)
+
+
 class UserResponse(BaseModel):
     """Public user profile returned by the API."""
 

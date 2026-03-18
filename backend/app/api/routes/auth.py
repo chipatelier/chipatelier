@@ -17,8 +17,15 @@ from app.core.security import (
     hash_password,
     verify_password,
 )
+from app.api.deps import get_current_user
 from app.models.user import User
-from app.schemas.auth import LoginRequest, RegisterRequest, TokenResponse, UserResponse
+from app.schemas.auth import (
+    ChangePasswordRequest,
+    LoginRequest,
+    RegisterRequest,
+    TokenResponse,
+    UserResponse,
+)
 
 router = APIRouter()
 settings = get_settings()
@@ -180,3 +187,30 @@ async def refresh_token(
 
     access_token = create_access_token(user_id)
     return TokenResponse(access_token=access_token)
+
+
+@router.post("/change-password", status_code=status.HTTP_204_NO_CONTENT)
+async def change_password(
+    body: ChangePasswordRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """Change the authenticated user's password.
+
+    Requires the correct current password. New password must differ from current.
+    """
+    if not current_user.password_hash or not verify_password(body.current_password, current_user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current password is incorrect",
+        )
+
+    # Plaintext-to-plaintext comparison (both from request body — not hash comparison)
+    if body.new_password == body.current_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="New password must differ from current password",
+        )
+
+    current_user.password_hash = hash_password(body.new_password)
+    await db.commit()

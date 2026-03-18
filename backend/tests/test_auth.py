@@ -196,3 +196,108 @@ async def test_protected_route_bad_token(test_client: TestClient):
         headers={"Authorization": "Bearer this-is-not-a-jwt"},
     )
     assert response.status_code == 401
+
+
+def test_change_password_success(test_client):
+    """CHANGE-PW-01: Authenticated user can change their own password."""
+    test_client.post(
+        "/api/v1/auth/register",
+        json={"email": "changepw@example.com", "password": "oldpassword1"},
+    )
+    login_resp = test_client.post(
+        "/api/v1/auth/login",
+        json={"email": "changepw@example.com", "password": "oldpassword1"},
+    )
+    token = login_resp.json()["access_token"]
+
+    resp = test_client.post(
+        "/api/v1/auth/change-password",
+        json={"current_password": "oldpassword1", "new_password": "newpassword1"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 204
+
+    # Verify old password no longer works
+    old_login = test_client.post(
+        "/api/v1/auth/login",
+        json={"email": "changepw@example.com", "password": "oldpassword1"},
+    )
+    assert old_login.status_code == 401
+
+    # Verify new password works
+    new_login = test_client.post(
+        "/api/v1/auth/login",
+        json={"email": "changepw@example.com", "password": "newpassword1"},
+    )
+    assert new_login.status_code == 200
+
+
+def test_change_password_wrong_current(test_client):
+    """CHANGE-PW-02: Wrong current password returns 400."""
+    test_client.post(
+        "/api/v1/auth/register",
+        json={"email": "changepw2@example.com", "password": "oldpassword1"},
+    )
+    login_resp = test_client.post(
+        "/api/v1/auth/login",
+        json={"email": "changepw2@example.com", "password": "oldpassword1"},
+    )
+    token = login_resp.json()["access_token"]
+
+    resp = test_client.post(
+        "/api/v1/auth/change-password",
+        json={"current_password": "wrongcurrent", "new_password": "newpassword1"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 400
+    assert "incorrect" in resp.json()["detail"].lower()
+
+
+def test_change_password_same_as_current(test_client):
+    """CHANGE-PW-03: New password same as current returns 400."""
+    test_client.post(
+        "/api/v1/auth/register",
+        json={"email": "changepw3@example.com", "password": "samepassword1"},
+    )
+    login_resp = test_client.post(
+        "/api/v1/auth/login",
+        json={"email": "changepw3@example.com", "password": "samepassword1"},
+    )
+    token = login_resp.json()["access_token"]
+
+    resp = test_client.post(
+        "/api/v1/auth/change-password",
+        json={"current_password": "samepassword1", "new_password": "samepassword1"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 400
+    assert "differ" in resp.json()["detail"].lower()
+
+
+def test_change_password_unauthenticated(test_client):
+    """CHANGE-PW-04: No token returns 401."""
+    resp = test_client.post(
+        "/api/v1/auth/change-password",
+        json={"current_password": "old", "new_password": "newpassword1"},
+    )
+    assert resp.status_code == 401
+
+
+def test_change_password_too_short(test_client):
+    """CHANGE-PW-05: new_password shorter than 8 chars returns 422."""
+    test_client.post(
+        "/api/v1/auth/register",
+        json={"email": "changepw5@example.com", "password": "oldpassword1"},
+    )
+    login_resp = test_client.post(
+        "/api/v1/auth/login",
+        json={"email": "changepw5@example.com", "password": "oldpassword1"},
+    )
+    token = login_resp.json()["access_token"]
+
+    resp = test_client.post(
+        "/api/v1/auth/change-password",
+        json={"current_password": "oldpassword1", "new_password": "short"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 422
