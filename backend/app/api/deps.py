@@ -1,6 +1,6 @@
 """FastAPI dependencies: authentication and authorization helpers."""
 import jwt
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -60,3 +60,23 @@ def require_role(*roles: str):
         return user
 
     return _check
+
+
+from app.core.redis import get_redis
+
+
+async def rate_limit(request: Request, redis=Depends(get_redis)) -> None:
+    """Allow at most 10 requests per IP per 10 minutes.
+
+    Reads real client IP from X-Forwarded-For set by Nginx.
+    Uses INCR + EXPIRE (fixed window) — sufficient for password reset.
+    """
+    forwarded_for = request.headers.get("X-Forwarded-For")
+    ip = forwarded_for.split(",")[0].strip() if forwarded_for else (request.client.host or "unknown")
+    key = f"ratelimit:reset:{ip}"
+    count = await redis.incr(key)
+    if count == 1:
+        # Set TTL only on first increment to avoid extending window on every request
+        await redis.expire(key, 600)
+    if count > 10:
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Too many attempts. Try again later.")
