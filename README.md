@@ -14,7 +14,6 @@ Apache 2.0.
 
 - Docker Engine 24+ and Docker Compose v2
 - 16+ GB RAM, 8+ CPU cores (28-36 cores recommended for 30-40 concurrent students)
-- SKY130 PDK files (see [PDK Setup](#pdk-setup) below)
 - Git
 
 ## Quick Start (5 minutes)
@@ -37,21 +36,11 @@ Open `.env` and set at minimum:
 JWT_SECRET_KEY=<long-random-string>        # MUST change — auth token signing key
 VNC_TOKEN_SECRET=<long-random-string>      # MUST change — VNC session token key
 POSTGRES_PASSWORD=<strong-password>        # MUST change — database password
-PDK_ROOT=/data/pdks                        # path to your PDK directory on the host
 ```
 
 Generate random secrets with: `openssl rand -hex 32`
 
-**3. Set up PDK**
-
-```bash
-# Point PDK_ROOT in .env to a directory containing sky130A (from google/skywater-pdk or open-pdks)
-# Example structure expected:
-#   /data/pdks/sky130A/
-PDK_ROOT=/data/pdks
-```
-
-**4. Start all services**
+**3. Start all services**
 
 ```bash
 docker compose up -d
@@ -59,11 +48,48 @@ docker compose up -d
 
 This builds all images on first run. Subsequent starts are fast.
 
-**5. Open the portal**
+**4. Open the portal**
 
 Navigate to `http://localhost:8080` in your browser.
 
 Default admin account: `admin@example.com` / `changeme` — **change this immediately** in the admin panel.
+
+## Storage Configuration
+
+ChipAtelier separates persistent data from ephemeral job scratch space:
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `DATA_ROOT` | `/opt/apps/chipatelier/data` | All persistent data: PostgreSQL, MinIO, artifacts, Ollama models, Redis |
+| `WORKSPACE_ROOT` | `/tmp/chipatelier_workspaces` | Scratch space for in-flight ORFS jobs (ephemeral, no backup needed) |
+
+**Before first `docker compose up`, create required directories:**
+
+```bash
+sudo bash scripts/install.sh
+```
+
+This creates subdirectories under `DATA_ROOT` and sets correct ownership for container users.
+
+**To use a different storage mount** (NAS, dedicated LVM volume, etc.), set `DATA_ROOT` in `.env` before running `install.sh`:
+
+```bash
+DATA_ROOT=/mnt/nas/chipatelier
+```
+
+**Verify variable substitution before starting:**
+
+```bash
+docker compose config | grep -E 'source:'
+```
+
+All source paths should show absolute host paths under your `DATA_ROOT`.
+
+**Backup guidance:**
+- Back up `DATA_ROOT` — it contains all durable state (database, artifacts, models)
+- Skip `WORKSPACE_ROOT` — ephemeral scratch space, cleared on reboot
+
+**Migrating from a previous installation** (named volumes → bind mounts): see `docs/superpowers/specs/2026-03-18-unified-storage-design.md` for step-by-step migration instructions.
 
 ## Services
 
@@ -81,15 +107,11 @@ Default admin account: `admin@example.com` / `changeme` — **change this immedi
 
 Ollama (AI inference) runs as a separate service on the host. Set `OLLAMA_BASE_URL` in `.env`.
 
-## PDK Setup
+## Supported PDKs
 
-SKY130 is the only supported PDK for MVP. Download SKY130A from:
-
-- [google/skywater-pdk](https://github.com/google/skywater-pdk) + open-pdks
-- or via the [IIC-OSIC-TOOLS](https://github.com/iic-jku/iic-osic-tools) bundled PDKs
-
-Set `PDK_ROOT` in `.env` to the parent directory containing `sky130A/`. The ORFS containers
-mount this directory read-only at `/pdks`.
+SKY130 (sky130hd) is the only supported PDK for MVP. Platform files for sky130hd, gf180,
+and asap7 are bundled inside the `openroad/orfs` Docker image — no external PDK download
+or mount is required.
 
 GF180 and ASAP7 support is planned for Phase 2 with no architectural changes required.
 
