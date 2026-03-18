@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import React, { useEffect, useState } from "react";
+import { useNavigate, Link, useLocation } from "react-router-dom";
 import { login, getMe } from "../api/auth";
 import { useStore } from "../store";
 
@@ -89,7 +89,17 @@ const LINK: React.CSSProperties = {
 
 export default function LoginPage(): React.ReactElement {
   const navigate = useNavigate();
+  const location = useLocation();
   const setAuth = useStore((s) => s.setAuth);
+
+  const flash = (location.state as { flash?: string } | null)?.flash ?? null;
+
+  // Clear flash from history so back-navigation doesn't re-show it
+  useEffect(() => {
+    if (flash) {
+      window.history.replaceState({}, document.title);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -122,6 +132,22 @@ export default function LoginPage(): React.ReactElement {
     <div style={PAGE_BG}>
       <div style={CARD}>
         <h1 style={HEADING}>Sign in to ChipAtelier</h1>
+
+        {flash && (
+          <div
+            style={{
+              marginBottom: 16,
+              borderRadius: 6,
+              background: "#1a3a25",
+              border: "1px solid #2ea043",
+              color: "#3fb950",
+              padding: "12px 16px",
+              fontSize: 13,
+            }}
+          >
+            {flash}
+          </div>
+        )}
 
         {error && <div style={ERROR_BOX}>{error}</div>}
 
@@ -163,6 +189,12 @@ export default function LoginPage(): React.ReactElement {
           >
             {loading ? "Signing in..." : "Sign in"}
           </button>
+
+          <p style={{ margin: 0, fontSize: 13, textAlign: "center", color: "#8b949e" }}>
+            <Link to="/reset-password" style={LINK}>
+              Forgot your password?
+            </Link>
+          </p>
         </form>
 
         <p style={FOOTER}>
