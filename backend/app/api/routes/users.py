@@ -14,12 +14,6 @@ async def get_me(current_user: User = Depends(get_current_user)) -> UserResponse
 
     storage_quota_bytes is None until the Institution model is implemented.
     """
-    return UserResponse(
-        id=current_user.id,
-        email=current_user.email,
-        display_name=current_user.display_name,
-        role=current_user.role,
-        storage_used_bytes=current_user.storage_used_bytes,
-        storage_quota_bytes=None,
-        created_at=current_user.created_at,
-    )
+    resp = UserResponse.model_validate(current_user)
+    resp.storage_quota_bytes = None
+    return resp
