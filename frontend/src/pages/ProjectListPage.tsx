@@ -10,15 +10,12 @@
  */
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { logout as authLogout } from "../api/auth";
 import { listProjects, createProject, ProjectResponse } from "../api/projects";
-import { useStore } from "../store";
-import { DEFAULT_QUOTA_GB } from "../constants";
+import { AppHeader } from "../components/AppHeader/AppHeader";
+import { ChangePasswordModal } from "../components/ChangePasswordModal/ChangePasswordModal";
 
 export default function ProjectListPage(): React.ReactElement {
   const navigate = useNavigate();
-  const user = useStore((s) => s.user);
-  const clearAuth = useStore((s) => s.clearAuth);
 
   const [projects, setProjects] = useState<ProjectResponse[]>([]);
   const [loading, setLoading] = useState(true);
@@ -26,11 +23,7 @@ export default function ProjectListPage(): React.ReactElement {
   const [showNewProjectForm, setShowNewProjectForm] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
   const [creating, setCreating] = useState(false);
-
-  const storageGB = user ? (user.storage_used_bytes / 1e9).toFixed(1) : "0.0";
-  const quotaGB = user?.storage_quota_bytes
-    ? (user.storage_quota_bytes / 1e9).toFixed(0)
-    : String(DEFAULT_QUOTA_GB);
+  const [changePwOpen, setChangePwOpen] = useState(false);
 
   useEffect(() => {
     listProjects()
@@ -38,15 +31,6 @@ export default function ProjectListPage(): React.ReactElement {
       .catch(() => setError("Failed to load projects"))
       .finally(() => setLoading(false));
   }, []);
-
-  function handleLogout(): void {
-    authLogout()
-      .catch(() => undefined)
-      .finally(() => {
-        clearAuth();
-        navigate("/login");
-      });
-  }
 
   async function handleCreateProject(e: React.FormEvent): Promise<void> {
     e.preventDefault();
@@ -66,55 +50,27 @@ export default function ProjectListPage(): React.ReactElement {
 
   return (
     <div style={{ fontFamily: "sans-serif", minHeight: "100vh", background: "#0d1117", color: "#c9d1d9" }}>
-      {/* Header */}
-      <header
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          padding: "16px 24px",
-          borderBottom: "1px solid #30363d",
-          background: "#161b22",
-        }}
-      >
-        <h1 style={{ margin: 0, fontSize: 20, color: "#f0f6fc" }}>ChipAtelier</h1>
-        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          {user && (
-            <span style={{ fontSize: 13, color: "#8b949e" }}>
-              {storageGB} GB of {quotaGB} GB used
-            </span>
-          )}
+      <AppHeader
+        actions={
           <button
-            onClick={() => setShowNewProjectForm(true)}
             style={{
-              padding: "6px 14px",
+              borderRadius: 6,
               background: "#238636",
               color: "#fff",
-              border: "none",
-              borderRadius: 6,
-              cursor: "pointer",
+              padding: "8px 14px",
               fontSize: 13,
               fontWeight: 600,
-            }}
-          >
-            New Project
-          </button>
-          <button
-            onClick={handleLogout}
-            style={{
-              padding: "6px 12px",
-              background: "transparent",
-              color: "#8b949e",
-              border: "1px solid #30363d",
-              borderRadius: 6,
+              border: "none",
               cursor: "pointer",
-              fontSize: 13,
             }}
+            onClick={() => setShowNewProjectForm(true)}
           >
-            Sign out
+            + New Project
           </button>
-        </div>
-      </header>
+        }
+        onChangePassword={() => setChangePwOpen(true)}
+      />
+      <ChangePasswordModal open={changePwOpen} onClose={() => setChangePwOpen(false)} />
 
       {/* New Project inline form */}
       {showNewProjectForm && (

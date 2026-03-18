@@ -13,6 +13,8 @@ import { useNavigate, useParams, Link } from "react-router-dom";
 import { getProject, listRuns, uploadFiles, ProjectResponse, RunSummary } from "../api/projects";
 import { submitJob } from "../api/jobs";
 import { RunHistoryTable } from "../components/RunHistoryTable";
+import { AppHeader } from "../components/AppHeader/AppHeader";
+import { ChangePasswordModal } from "../components/ChangePasswordModal/ChangePasswordModal";
 
 const ACTIVE_STATUSES = new Set(["queued", "starting", "running"]);
 
@@ -38,6 +40,7 @@ export default function ProjectPage(): React.ReactElement {
   const [uploadFiles_, setUploadFiles_] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
   const [sourcePath, setSourcePath] = useState<string | null>(null);
+  const [changePwOpen, setChangePwOpen] = useState(false);
 
   const hasActiveRun = runs.some((r) => ACTIVE_STATUSES.has(r.status));
 
@@ -101,58 +104,57 @@ export default function ProjectPage(): React.ReactElement {
 
   return (
     <div style={{ fontFamily: "sans-serif", minHeight: "100vh", background: "#0d1117", color: "#c9d1d9" }}>
-      {/* Header */}
-      <header style={{ padding: "16px 24px", borderBottom: "1px solid #30363d", background: "#161b22" }}>
-        {/* Breadcrumb */}
-        <nav style={{ fontSize: 13, color: "#8b949e", marginBottom: 8 }}>
-          <Link to="/projects" style={{ color: "#58a6ff", textDecoration: "none" }}>
-            Projects
-          </Link>
-          <span style={{ margin: "0 8px" }}>&rsaquo;</span>
-          <span style={{ color: "#f0f6fc" }}>{project?.name ?? "..."}</span>
-        </nav>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <h2 style={{ margin: 0, fontSize: 20, color: "#f0f6fc" }}>{project?.name}</h2>
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <select
-              value={targetStage}
-              onChange={(e) => setTargetStage(e.target.value)}
-              disabled={hasActiveRun || submitting}
-              title="Target flow stage"
-              style={{
-                padding: "6px 10px",
-                background: "#161b22",
-                color: hasActiveRun || submitting ? "#6e7681" : "#c9d1d9",
-                border: "1px solid #30363d",
-                borderRadius: 6,
-                fontSize: 13,
-                cursor: hasActiveRun || submitting ? "not-allowed" : "pointer",
-              }}
-            >
-              {STAGES.map((s) => (
-                <option key={s.value} value={s.value}>{s.label}</option>
-              ))}
-            </select>
-            <button
-              onClick={handleNewRun}
-              disabled={hasActiveRun || submitting}
-              title={hasActiveRun ? "Cancel the active run before starting a new one" : "Start a new ORFS run"}
-              style={{
-                padding: "6px 14px",
-                background: hasActiveRun || submitting ? "#21262d" : "#238636",
-                color: hasActiveRun || submitting ? "#6e7681" : "#fff",
-                border: `1px solid ${hasActiveRun || submitting ? "#30363d" : "transparent"}`,
-                borderRadius: 6,
-                cursor: hasActiveRun || submitting ? "not-allowed" : "pointer",
-                fontSize: 13,
-                fontWeight: 600,
-              }}
-            >
-              {submitting ? "Submitting..." : hasActiveRun ? "Run Active" : "New Run"}
-            </button>
-          </div>
-        </div>
-      </header>
+      <AppHeader
+        breadcrumbs={
+          <span style={{ color: "#8b949e" }}>
+            <Link to="/projects" style={{ color: "#58a6ff", textDecoration: "none" }}>Projects</Link>
+            {" › "}
+            <span style={{ color: "#e6edf3" }}>{project?.name ?? "…"}</span>
+          </span>
+        }
+        onChangePassword={() => setChangePwOpen(true)}
+      />
+      <ChangePasswordModal open={changePwOpen} onClose={() => setChangePwOpen(false)} />
+
+      {/* Run controls toolbar */}
+      <div style={{ padding: "12px 24px", borderBottom: "1px solid #30363d", background: "#161b22", display: "flex", gap: 8, alignItems: "center" }}>
+        <select
+          value={targetStage}
+          onChange={(e) => setTargetStage(e.target.value)}
+          disabled={hasActiveRun || submitting}
+          title="Target flow stage"
+          style={{
+            padding: "6px 10px",
+            background: "#161b22",
+            color: hasActiveRun || submitting ? "#6e7681" : "#c9d1d9",
+            border: "1px solid #30363d",
+            borderRadius: 6,
+            fontSize: 13,
+            cursor: hasActiveRun || submitting ? "not-allowed" : "pointer",
+          }}
+        >
+          {STAGES.map((s) => (
+            <option key={s.value} value={s.value}>{s.label}</option>
+          ))}
+        </select>
+        <button
+          onClick={handleNewRun}
+          disabled={hasActiveRun || submitting}
+          title={hasActiveRun ? "Cancel the active run before starting a new one" : "Start a new ORFS run"}
+          style={{
+            padding: "6px 14px",
+            background: hasActiveRun || submitting ? "#21262d" : "#238636",
+            color: hasActiveRun || submitting ? "#6e7681" : "#fff",
+            border: `1px solid ${hasActiveRun || submitting ? "#30363d" : "transparent"}`,
+            borderRadius: 6,
+            cursor: hasActiveRun || submitting ? "not-allowed" : "pointer",
+            fontSize: 13,
+            fontWeight: 600,
+          }}
+        >
+          {submitting ? "Submitting..." : hasActiveRun ? "Run Active" : "New Run"}
+        </button>
+      </div>
 
       <main style={{ padding: 24 }}>
         {error && (
