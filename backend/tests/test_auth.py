@@ -441,3 +441,51 @@ async def test_reset_password_too_short(test_client, mock_redis):
         assert resp.status_code == 422
     finally:
         app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_reset_password_token_consumed_atomically(test_client, mock_redis):
+    """RESET-PW-05: Token is deleted atomically — a second request with the same token fails."""
+    from app.main import app
+    from app.core.redis import get_redis
+    from app.api.deps import rate_limit
+
+    async def override_redis():
+        return mock_redis
+
+    async def override_rate_limit():
+        return None
+
+    app.dependency_overrides[get_redis] = override_redis
+    app.dependency_overrides[rate_limit] = override_rate_limit
+    try:
+        test_client.post(
+            "/api/v1/auth/register",
+            json={"email": "atomic@example.com", "password": "oldpassword1"},
+        )
+        await mock_redis.set("pwreset:atomic@example.com", "TOKEN123", ex=3600)
+
+        # First request — must succeed
+        resp1 = test_client.post(
+            "/api/v1/auth/reset-password",
+            json={
+                "email": "atomic@example.com",
+                "token": "TOKEN123",
+                "new_password": "newpassword1",
+            },
+        )
+        assert resp1.status_code == 204
+
+        # Second request with same token — must fail (token already consumed)
+        resp2 = test_client.post(
+            "/api/v1/auth/reset-password",
+            json={
+                "email": "atomic@example.com",
+                "token": "TOKEN123",
+                "new_password": "anotherpass1",
+            },
+        )
+        assert resp2.status_code == 400
+        assert resp2.json()["detail"] == "Invalid or expired reset token"
+    finally:
+        app.dependency_overrides.clear()

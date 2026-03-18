@@ -229,13 +229,15 @@ async def reset_password(
 
     Returns the same error for missing token and wrong token — no email enumeration.
     Token comparison uses hmac.compare_digest to prevent timing side-channels.
+    GETDEL atomically fetches and deletes the token, preventing concurrent reuse.
     """
     _invalid = HTTPException(
         status_code=status.HTTP_400_BAD_REQUEST,
         detail="Invalid or expired reset token",
     )
 
-    stored_token: str | None = await redis.get(f"pwreset:{body.email}")
+    # Atomically fetch-and-delete: if two requests race, only one gets the token.
+    stored_token: str | bytes | None = await redis.getdel(f"pwreset:{body.email}")
     if stored_token is None:
         raise _invalid
 
@@ -253,6 +255,3 @@ async def reset_password(
 
     user.password_hash = hash_password(body.new_password)
     await db.commit()
-
-    # Consume the token (single-use)
-    await redis.delete(f"pwreset:{body.email}")
