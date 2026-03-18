@@ -27,7 +27,7 @@ export interface VncStartResponse {
  * @throws 429 if MAX_VNC_SESSIONS limit is reached.
  */
 export async function startVncSession(runId: string): Promise<VncStartResponse> {
-  const resp = await apiClient.post<VncStartResponse>(`/api/v1/vnc/start/${runId}`);
+  const resp = await apiClient.post<VncStartResponse>(`/vnc/start/${runId}`);
   return resp.data;
 }
 
@@ -38,5 +38,5 @@ export async function startVncSession(runId: string): Promise<VncStartResponse> 
  * @throws 403 if session does not belong to the current user.
  */
 export async function stopVncSession(sessionId: string): Promise<void> {
-  await apiClient.delete(`/api/v1/vnc/${sessionId}`);
+  await apiClient.delete(`/vnc/${sessionId}`);
 }

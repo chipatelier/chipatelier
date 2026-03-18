@@ -13,6 +13,10 @@ class Settings(BaseSettings):
     # Storage
     STORAGE_BACKEND: str = "minio"
     MINIO_ENDPOINT: str = "minio:9000"
+    # Public hostname used in presigned URLs sent to the browser.
+    # Must be browser-resolvable: "localhost:9000" in dev, "minio.university.edu" in prod.
+    # Defaults to MINIO_ENDPOINT when empty (correct for S3 where the public URL matches).
+    MINIO_PUBLIC_URL: str = ""
     MINIO_ACCESS_KEY: str = "minioadmin"
     MINIO_SECRET_KEY: str = "minioadmin"
     S3_BUCKET_ARTIFACTS: str = "chipatelier-artifacts"

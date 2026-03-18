@@ -14,9 +14,10 @@ class StorageService:
     """Wraps MinIO/S3 with upload, presigned download URL, and prefix deletion."""
 
     def __init__(self, settings: Any) -> None:
+        self._internal_endpoint = f"http://{settings.MINIO_ENDPOINT}"
         self._client = boto3.client(
             "s3",
-            endpoint_url=f"http://{settings.MINIO_ENDPOINT}",
+            endpoint_url=self._internal_endpoint,
             aws_access_key_id=settings.MINIO_ACCESS_KEY,
             aws_secret_access_key=settings.MINIO_SECRET_KEY,
             # REQUIRED for MinIO — without s3v4 presigned URLs return 403
@@ -24,6 +25,10 @@ class StorageService:
             region_name="us-east-1",
         )
         self._bucket = settings.S3_BUCKET_ARTIFACTS
+        # Public URL used to rewrite presigned URLs before returning them to the browser.
+        # MinIO's internal hostname (e.g. "minio:9000") is not resolvable outside Docker.
+        public = settings.MINIO_PUBLIC_URL or settings.MINIO_ENDPOINT
+        self._public_endpoint = f"http://{public}"
 
     def upload_file(
         self,
@@ -41,12 +46,19 @@ class StorageService:
         return key
 
     def generate_download_url(self, key: str, expiry: int = 3600) -> str:
-        """Generate a presigned GET URL for the given key."""
-        return self._client.generate_presigned_url(
+        """Generate a presigned GET URL for the given key.
+
+        The boto3 client signs against the internal endpoint URL. If MINIO_PUBLIC_URL
+        differs, we rewrite the hostname so the URL is resolvable from the browser.
+        """
+        url = self._client.generate_presigned_url(
             "get_object",
             Params={"Bucket": self._bucket, "Key": key},
             ExpiresIn=expiry,
         )
+        if self._public_endpoint != self._internal_endpoint:
+            url = url.replace(self._internal_endpoint, self._public_endpoint, 1)
+        return url
 
     def download_file(self, key: str, local_path: str) -> None:
         """Download a file from S3/MinIO to a local path."""
