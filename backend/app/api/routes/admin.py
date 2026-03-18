@@ -15,7 +15,10 @@ from app.schemas.admin import GenerateResetTokenRequest, ResetTokenResponse
 router = APIRouter()
 
 _RESET_TOKEN_TTL = 3600  # 1 hour
-_TOKEN_ALPHABET = string.ascii_uppercase + string.digits
+# Exclude visually ambiguous characters (0/O and 1/I) for easier transcription
+_TOKEN_ALPHABET = "".join(
+    c for c in string.ascii_uppercase + string.digits if c not in "0O1I"
+)
 
 
 @router.post("/reset-token", response_model=ResetTokenResponse)

@@ -54,6 +54,7 @@ async def test_admin_generate_reset_token_success(test_client, async_session, mo
         assert len(data["token"]) == 8
         assert data["token"].isalnum()
         assert data["token"] == data["token"].upper()
+        assert not any(c in data["token"] for c in "0O1I"), "Token must not contain ambiguous chars"
         assert data["expires_in_seconds"] == 3600
 
         # Token must be stored in Redis
