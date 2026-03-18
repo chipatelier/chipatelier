@@ -34,6 +34,14 @@ class ChangePasswordRequest(BaseModel):
     new_password: str = Field(min_length=8)
 
 
+class ResetPasswordRequest(BaseModel):
+    """Request body for resetting a forgotten password via admin-issued token."""
+
+    email: EmailStr
+    token: str
+    new_password: str = Field(min_length=8)
+
+
 class UserResponse(BaseModel):
     """Public user profile returned by the API."""
 

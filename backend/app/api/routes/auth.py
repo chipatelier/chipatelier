@@ -1,4 +1,5 @@
 """Authentication endpoints: register, login, logout, refresh."""
+import hmac
 from datetime import datetime, timezone
 
 import jwt
@@ -17,12 +18,13 @@ from app.core.security import (
     hash_password,
     verify_password,
 )
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, rate_limit
 from app.models.user import User
 from app.schemas.auth import (
     ChangePasswordRequest,
     LoginRequest,
     RegisterRequest,
+    ResetPasswordRequest,
     TokenResponse,
     UserResponse,
 )
@@ -214,3 +216,43 @@ async def change_password(
 
     current_user.password_hash = hash_password(body.new_password)
     await db.commit()
+
+
+@router.post("/reset-password", status_code=status.HTTP_204_NO_CONTENT)
+async def reset_password(
+    body: ResetPasswordRequest,
+    db: AsyncSession = Depends(get_db),
+    redis=Depends(get_redis),
+    _: None = Depends(rate_limit),
+) -> None:
+    """Reset a forgotten password using an admin-issued one-time token.
+
+    Returns the same error for missing token and wrong token — no email enumeration.
+    Token comparison uses hmac.compare_digest to prevent timing side-channels.
+    """
+    _invalid = HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="Invalid or expired reset token",
+    )
+
+    stored_token: str | None = await redis.get(f"pwreset:{body.email}")
+    if stored_token is None:
+        raise _invalid
+
+    # Decode bytes if Redis returns bytes
+    if isinstance(stored_token, bytes):
+        stored_token = stored_token.decode()
+
+    if not hmac.compare_digest(stored_token, body.token):
+        raise _invalid
+
+    result = await db.execute(select(User).where(User.email == body.email))
+    user = result.scalar_one_or_none()
+    if user is None:
+        raise _invalid  # same error — no enumeration
+
+    user.password_hash = hash_password(body.new_password)
+    await db.commit()
+
+    # Consume the token (single-use)
+    await redis.delete(f"pwreset:{body.email}")

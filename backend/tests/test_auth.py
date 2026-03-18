@@ -301,3 +301,143 @@ def test_change_password_too_short(test_client):
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_reset_password_success(test_client, async_session, mock_redis):
+    """RESET-PW-01: Valid token resets password and is consumed (single-use)."""
+    import hmac
+    from app.main import app
+    from app.core.redis import get_redis
+    from app.api.deps import rate_limit
+
+    async def override_redis():
+        return mock_redis
+
+    async def override_rate_limit():
+        return None  # disable rate limiting in tests
+
+    app.dependency_overrides[get_redis] = override_redis
+    app.dependency_overrides[rate_limit] = override_rate_limit
+    try:
+        test_client.post(
+            "/api/v1/auth/register",
+            json={"email": "resetpw@example.com", "password": "oldpassword1"},
+        )
+
+        # Seed a valid reset token in fakeredis
+        await mock_redis.set("pwreset:resetpw@example.com", "ABCD1234", ex=3600)
+
+        resp = test_client.post(
+            "/api/v1/auth/reset-password",
+            json={
+                "email": "resetpw@example.com",
+                "token": "ABCD1234",
+                "new_password": "brandnewpass1",
+            },
+        )
+        assert resp.status_code == 204
+
+        # Token must be deleted (single-use)
+        stored = await mock_redis.get("pwreset:resetpw@example.com")
+        assert stored is None
+
+        # New password works
+        login = test_client.post(
+            "/api/v1/auth/login",
+            json={"email": "resetpw@example.com", "password": "brandnewpass1"},
+        )
+        assert login.status_code == 200
+    finally:
+        app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_reset_password_invalid_token(test_client, mock_redis):
+    """RESET-PW-02: Wrong token returns 400 with generic message."""
+    from app.main import app
+    from app.core.redis import get_redis
+    from app.api.deps import rate_limit
+
+    async def override_redis():
+        return mock_redis
+
+    async def override_rate_limit():
+        return None
+
+    app.dependency_overrides[get_redis] = override_redis
+    app.dependency_overrides[rate_limit] = override_rate_limit
+    try:
+        test_client.post(
+            "/api/v1/auth/register",
+            json={"email": "resetpw2@example.com", "password": "oldpassword1"},
+        )
+        await mock_redis.set("pwreset:resetpw2@example.com", "CORRECT1", ex=3600)
+
+        resp = test_client.post(
+            "/api/v1/auth/reset-password",
+            json={
+                "email": "resetpw2@example.com",
+                "token": "WRONGTOK",
+                "new_password": "newpassword1",
+            },
+        )
+        assert resp.status_code == 400
+        assert resp.json()["detail"] == "Invalid or expired reset token"
+    finally:
+        app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_reset_password_no_token_in_redis(test_client, mock_redis):
+    """RESET-PW-03: No token in Redis (expired or never set) returns 400."""
+    from app.main import app
+    from app.core.redis import get_redis
+    from app.api.deps import rate_limit
+
+    async def override_redis():
+        return mock_redis
+
+    async def override_rate_limit():
+        return None
+
+    app.dependency_overrides[get_redis] = override_redis
+    app.dependency_overrides[rate_limit] = override_rate_limit
+    try:
+        resp = test_client.post(
+            "/api/v1/auth/reset-password",
+            json={
+                "email": "nobody@example.com",
+                "token": "ANYTHING",
+                "new_password": "newpassword1",
+            },
+        )
+        assert resp.status_code == 400
+        assert resp.json()["detail"] == "Invalid or expired reset token"
+    finally:
+        app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_reset_password_too_short(test_client, mock_redis):
+    """RESET-PW-04: new_password < 8 chars returns 422."""
+    from app.main import app
+    from app.core.redis import get_redis
+    from app.api.deps import rate_limit
+
+    async def override_redis():
+        return mock_redis
+
+    async def override_rate_limit():
+        return None
+
+    app.dependency_overrides[get_redis] = override_redis
+    app.dependency_overrides[rate_limit] = override_rate_limit
+    try:
+        resp = test_client.post(
+            "/api/v1/auth/reset-password",
+            json={"email": "x@example.com", "token": "ABCD1234", "new_password": "short"},
+        )
+        assert resp.status_code == 422
+    finally:
+        app.dependency_overrides.clear()
