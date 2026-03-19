@@ -196,3 +196,296 @@ async def test_protected_route_bad_token(test_client: TestClient):
         headers={"Authorization": "Bearer this-is-not-a-jwt"},
     )
     assert response.status_code == 401
+
+
+def test_change_password_success(test_client):
+    """CHANGE-PW-01: Authenticated user can change their own password."""
+    test_client.post(
+        "/api/v1/auth/register",
+        json={"email": "changepw@example.com", "password": "oldpassword1"},
+    )
+    login_resp = test_client.post(
+        "/api/v1/auth/login",
+        json={"email": "changepw@example.com", "password": "oldpassword1"},
+    )
+    token = login_resp.json()["access_token"]
+
+    resp = test_client.post(
+        "/api/v1/auth/change-password",
+        json={"current_password": "oldpassword1", "new_password": "newpassword1"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 204
+
+    # Verify old password no longer works
+    old_login = test_client.post(
+        "/api/v1/auth/login",
+        json={"email": "changepw@example.com", "password": "oldpassword1"},
+    )
+    assert old_login.status_code == 401
+
+    # Verify new password works
+    new_login = test_client.post(
+        "/api/v1/auth/login",
+        json={"email": "changepw@example.com", "password": "newpassword1"},
+    )
+    assert new_login.status_code == 200
+
+
+def test_change_password_wrong_current(test_client):
+    """CHANGE-PW-02: Wrong current password returns 400."""
+    test_client.post(
+        "/api/v1/auth/register",
+        json={"email": "changepw2@example.com", "password": "oldpassword1"},
+    )
+    login_resp = test_client.post(
+        "/api/v1/auth/login",
+        json={"email": "changepw2@example.com", "password": "oldpassword1"},
+    )
+    token = login_resp.json()["access_token"]
+
+    resp = test_client.post(
+        "/api/v1/auth/change-password",
+        json={"current_password": "wrongcurrent", "new_password": "newpassword1"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 400
+    assert "incorrect" in resp.json()["detail"].lower()
+
+
+def test_change_password_same_as_current(test_client):
+    """CHANGE-PW-03: New password same as current returns 400."""
+    test_client.post(
+        "/api/v1/auth/register",
+        json={"email": "changepw3@example.com", "password": "samepassword1"},
+    )
+    login_resp = test_client.post(
+        "/api/v1/auth/login",
+        json={"email": "changepw3@example.com", "password": "samepassword1"},
+    )
+    token = login_resp.json()["access_token"]
+
+    resp = test_client.post(
+        "/api/v1/auth/change-password",
+        json={"current_password": "samepassword1", "new_password": "samepassword1"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 400
+    assert "differ" in resp.json()["detail"].lower()
+
+
+def test_change_password_unauthenticated(test_client):
+    """CHANGE-PW-04: No token returns 401."""
+    resp = test_client.post(
+        "/api/v1/auth/change-password",
+        json={"current_password": "old", "new_password": "newpassword1"},
+    )
+    assert resp.status_code == 401
+
+
+def test_change_password_too_short(test_client):
+    """CHANGE-PW-05: new_password shorter than 8 chars returns 422."""
+    test_client.post(
+        "/api/v1/auth/register",
+        json={"email": "changepw5@example.com", "password": "oldpassword1"},
+    )
+    login_resp = test_client.post(
+        "/api/v1/auth/login",
+        json={"email": "changepw5@example.com", "password": "oldpassword1"},
+    )
+    token = login_resp.json()["access_token"]
+
+    resp = test_client.post(
+        "/api/v1/auth/change-password",
+        json={"current_password": "oldpassword1", "new_password": "short"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_reset_password_success(test_client, async_session, mock_redis):
+    """RESET-PW-01: Valid token resets password and is consumed (single-use)."""
+    import hmac
+    from app.main import app
+    from app.core.redis import get_redis
+    from app.api.routes.auth import _reset_rate_limit
+
+    async def override_redis():
+        return mock_redis
+
+    async def override_rate_limit():
+        return None  # disable rate limiting in tests
+
+    app.dependency_overrides[get_redis] = override_redis
+    app.dependency_overrides[_reset_rate_limit] = override_rate_limit
+    try:
+        test_client.post(
+            "/api/v1/auth/register",
+            json={"email": "resetpw@example.com", "password": "oldpassword1"},
+        )
+
+        # Seed a valid reset token in fakeredis
+        await mock_redis.set("pwreset:resetpw@example.com", "ABCD1234", ex=3600)
+
+        resp = test_client.post(
+            "/api/v1/auth/reset-password",
+            json={
+                "email": "resetpw@example.com",
+                "token": "ABCD1234",
+                "new_password": "brandnewpass1",
+            },
+        )
+        assert resp.status_code == 204
+
+        # Token must be deleted (single-use)
+        stored = await mock_redis.get("pwreset:resetpw@example.com")
+        assert stored is None
+
+        # New password works
+        login = test_client.post(
+            "/api/v1/auth/login",
+            json={"email": "resetpw@example.com", "password": "brandnewpass1"},
+        )
+        assert login.status_code == 200
+    finally:
+        app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_reset_password_invalid_token(test_client, mock_redis):
+    """RESET-PW-02: Wrong token returns 400 with generic message."""
+    from app.main import app
+    from app.core.redis import get_redis
+    from app.api.routes.auth import _reset_rate_limit
+
+    async def override_redis():
+        return mock_redis
+
+    async def override_rate_limit():
+        return None
+
+    app.dependency_overrides[get_redis] = override_redis
+    app.dependency_overrides[_reset_rate_limit] = override_rate_limit
+    try:
+        test_client.post(
+            "/api/v1/auth/register",
+            json={"email": "resetpw2@example.com", "password": "oldpassword1"},
+        )
+        await mock_redis.set("pwreset:resetpw2@example.com", "CORRECT1", ex=3600)
+
+        resp = test_client.post(
+            "/api/v1/auth/reset-password",
+            json={
+                "email": "resetpw2@example.com",
+                "token": "WRONGTOK",
+                "new_password": "newpassword1",
+            },
+        )
+        assert resp.status_code == 400
+        assert resp.json()["detail"] == "Invalid or expired reset token"
+    finally:
+        app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_reset_password_no_token_in_redis(test_client, mock_redis):
+    """RESET-PW-03: No token in Redis (expired or never set) returns 400."""
+    from app.main import app
+    from app.core.redis import get_redis
+    from app.api.routes.auth import _reset_rate_limit
+
+    async def override_redis():
+        return mock_redis
+
+    async def override_rate_limit():
+        return None
+
+    app.dependency_overrides[get_redis] = override_redis
+    app.dependency_overrides[_reset_rate_limit] = override_rate_limit
+    try:
+        resp = test_client.post(
+            "/api/v1/auth/reset-password",
+            json={
+                "email": "nobody@example.com",
+                "token": "ANYTHING",
+                "new_password": "newpassword1",
+            },
+        )
+        assert resp.status_code == 400
+        assert resp.json()["detail"] == "Invalid or expired reset token"
+    finally:
+        app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_reset_password_too_short(test_client, mock_redis):
+    """RESET-PW-04: new_password < 8 chars returns 422."""
+    from app.main import app
+    from app.core.redis import get_redis
+    from app.api.routes.auth import _reset_rate_limit
+
+    async def override_redis():
+        return mock_redis
+
+    async def override_rate_limit():
+        return None
+
+    app.dependency_overrides[get_redis] = override_redis
+    app.dependency_overrides[_reset_rate_limit] = override_rate_limit
+    try:
+        resp = test_client.post(
+            "/api/v1/auth/reset-password",
+            json={"email": "x@example.com", "token": "ABCD1234", "new_password": "short"},
+        )
+        assert resp.status_code == 422
+    finally:
+        app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_reset_password_token_consumed_atomically(test_client, mock_redis):
+    """RESET-PW-05: Token is deleted atomically — a second request with the same token fails."""
+    from app.main import app
+    from app.core.redis import get_redis
+    from app.api.routes.auth import _reset_rate_limit
+
+    async def override_redis():
+        return mock_redis
+
+    async def override_rate_limit():
+        return None
+
+    app.dependency_overrides[get_redis] = override_redis
+    app.dependency_overrides[_reset_rate_limit] = override_rate_limit
+    try:
+        test_client.post(
+            "/api/v1/auth/register",
+            json={"email": "atomic@example.com", "password": "oldpassword1"},
+        )
+        await mock_redis.set("pwreset:atomic@example.com", "TOKEN123", ex=3600)
+
+        # First request — must succeed
+        resp1 = test_client.post(
+            "/api/v1/auth/reset-password",
+            json={
+                "email": "atomic@example.com",
+                "token": "TOKEN123",
+                "new_password": "newpassword1",
+            },
+        )
+        assert resp1.status_code == 204
+
+        # Second request with same token — must fail (token already consumed)
+        resp2 = test_client.post(
+            "/api/v1/auth/reset-password",
+            json={
+                "email": "atomic@example.com",
+                "token": "TOKEN123",
+                "new_password": "anotherpass1",
+            },
+        )
+        assert resp2.status_code == 400
+        assert resp2.json()["detail"] == "Invalid or expired reset token"
+    finally:
+        app.dependency_overrides.clear()

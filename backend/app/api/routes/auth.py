@@ -1,4 +1,5 @@
 """Authentication endpoints: register, login, logout, refresh."""
+import hmac
 from datetime import datetime, timezone
 
 import jwt
@@ -17,11 +18,21 @@ from app.core.security import (
     hash_password,
     verify_password,
 )
+from app.api.deps import get_current_user, rate_limit
 from app.models.user import User
-from app.schemas.auth import LoginRequest, RegisterRequest, TokenResponse, UserResponse
+from app.schemas.auth import (
+    ChangePasswordRequest,
+    LoginRequest,
+    RegisterRequest,
+    ResetPasswordRequest,
+    TokenResponse,
+    UserResponse,
+)
 
 router = APIRouter()
 settings = get_settings()
+
+_reset_rate_limit = rate_limit("pwreset")
 
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
@@ -180,3 +191,69 @@ async def refresh_token(
 
     access_token = create_access_token(user_id)
     return TokenResponse(access_token=access_token)
+
+
+@router.post("/change-password", status_code=status.HTTP_204_NO_CONTENT)
+async def change_password(
+    body: ChangePasswordRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """Change the authenticated user's password.
+
+    Requires the correct current password. New password must differ from current.
+    """
+    if not current_user.password_hash or not verify_password(body.current_password, current_user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current password is incorrect",
+        )
+
+    # Plaintext-to-plaintext comparison (both from request body — not hash comparison)
+    if body.new_password == body.current_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="New password must differ from current password",
+        )
+
+    current_user.password_hash = hash_password(body.new_password)
+    await db.commit()
+
+
+@router.post("/reset-password", status_code=status.HTTP_204_NO_CONTENT)
+async def reset_password(
+    body: ResetPasswordRequest,
+    db: AsyncSession = Depends(get_db),
+    redis=Depends(get_redis),
+    _: None = Depends(_reset_rate_limit),
+) -> None:
+    """Reset a forgotten password using an admin-issued one-time token.
+
+    Returns the same error for missing token and wrong token — no email enumeration.
+    Token comparison uses hmac.compare_digest to prevent timing side-channels.
+    GETDEL atomically fetches and deletes the token, preventing concurrent reuse.
+    """
+    _invalid = HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="Invalid or expired reset token",
+    )
+
+    # Atomically fetch-and-delete: if two requests race, only one gets the token.
+    stored_token: str | bytes | None = await redis.getdel(f"pwreset:{body.email}")
+    if stored_token is None:
+        raise _invalid
+
+    # Decode bytes if Redis returns bytes
+    if isinstance(stored_token, bytes):
+        stored_token = stored_token.decode()
+
+    if not hmac.compare_digest(stored_token, body.token):
+        raise _invalid
+
+    result = await db.execute(select(User).where(User.email == body.email))
+    user = result.scalar_one_or_none()
+    if user is None:
+        raise _invalid  # same error — no enumeration
+
+    user.password_hash = hash_password(body.new_password)
+    await db.commit()

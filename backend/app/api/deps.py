@@ -1,10 +1,11 @@
 """FastAPI dependencies: authentication and authorization helpers."""
 import jwt
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.core.redis import get_redis
 from app.core.security import decode_token
 from app.models.user import User
 
@@ -58,5 +59,32 @@ def require_role(*roles: str):
         if user.role not in roles:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
         return user
+
+    return _check
+
+
+def rate_limit(key_prefix: str, limit: int = 10, window_seconds: int = 600):
+    """Dependency factory: IP-based fixed-window rate limiter.
+
+    Args:
+        key_prefix: Redis key namespace (e.g. "pwreset"). Becomes ratelimit:{key_prefix}:{ip}.
+        limit: Maximum requests allowed per window (default 10).
+        window_seconds: Window duration in seconds (default 600 = 10 minutes).
+
+    Reads real client IP from X-Forwarded-For set by Nginx.
+    Uses INCR + EXPIRE (fixed window).
+    """
+    async def _check(request: Request, redis=Depends(get_redis)) -> None:
+        forwarded_for = request.headers.get("X-Forwarded-For")
+        ip = forwarded_for.split(",")[0].strip() if forwarded_for else (request.client.host or "unknown")
+        key = f"ratelimit:{key_prefix}:{ip}"
+        count = await redis.incr(key)
+        if count == 1:
+            await redis.expire(key, window_seconds)
+        if count > limit:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Too many attempts. Try again later.",
+            )
 
     return _check

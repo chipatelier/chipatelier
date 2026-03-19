@@ -1,7 +1,6 @@
-import React, { useEffect, useState } from "react";
-import { useNavigate, Link, useLocation } from "react-router-dom";
-import { login, getMe } from "../api/auth";
-import { useStore } from "../store";
+import React, { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { resetPassword } from "../api/auth";
 
 const PAGE_BG: React.CSSProperties = {
   minHeight: "100vh",
@@ -24,6 +23,12 @@ const HEADING: React.CSSProperties = {
   fontSize: 22,
   fontWeight: 700,
   color: "#e6edf3",
+  marginBottom: 8,
+};
+
+const SUBTITLE: React.CSSProperties = {
+  fontSize: 13,
+  color: "#8b949e",
   marginBottom: 24,
 };
 
@@ -69,12 +74,6 @@ const BUTTON: React.CSSProperties = {
   cursor: "pointer",
 };
 
-const BUTTON_DISABLED: React.CSSProperties = {
-  ...BUTTON,
-  opacity: 0.5,
-  cursor: "not-allowed",
-};
-
 const FOOTER: React.CSSProperties = {
   marginTop: 16,
   fontSize: 13,
@@ -87,22 +86,11 @@ const LINK: React.CSSProperties = {
   textDecoration: "none",
 };
 
-export default function LoginPage(): React.ReactElement {
+export default function ResetPasswordPage(): React.ReactElement {
   const navigate = useNavigate();
-  const location = useLocation();
-  const setAuth = useStore((s) => s.setAuth);
-
-  const flash = (location.state as { flash?: string } | null)?.flash ?? null;
-
-  // Clear flash from history so back-navigation doesn't re-show it
-  useEffect(() => {
-    if (flash) {
-      window.history.replaceState({}, document.title);
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [token, setToken] = useState("");
+  const [newPassword, setNewPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -110,19 +98,14 @@ export default function LoginPage(): React.ReactElement {
     e.preventDefault();
     setError(null);
     setLoading(true);
-
     try {
-      const tokenResp = await login(email, password);
-      const user = await getMe();
-      setAuth(user, tokenResp.access_token);
-      navigate("/projects");
+      await resetPassword(email, token, newPassword);
+      navigate("/login", {
+        state: { flash: "Password reset successfully. Please sign in." },
+      });
     } catch (err: unknown) {
-      const axiosErr = err as { response?: { status?: number } };
-      if (axiosErr?.response?.status === 401) {
-        setError("Invalid email or password.");
-      } else {
-        setError("Login failed. Please try again.");
-      }
+      const axiosErr = err as { response?: { data?: { detail?: string } } };
+      setError(axiosErr?.response?.data?.detail ?? "Invalid or expired token.");
     } finally {
       setLoading(false);
     }
@@ -131,76 +114,68 @@ export default function LoginPage(): React.ReactElement {
   return (
     <div style={PAGE_BG}>
       <div style={CARD}>
-        <h1 style={HEADING}>Sign in to ChipAtelier</h1>
-
-        {flash && (
-          <div
-            style={{
-              marginBottom: 16,
-              borderRadius: 6,
-              background: "#1a3a25",
-              border: "1px solid #2ea043",
-              color: "#3fb950",
-              padding: "12px 16px",
-              fontSize: 13,
-            }}
-          >
-            {flash}
-          </div>
-        )}
+        <h1 style={HEADING}>Reset your password</h1>
+        <p style={SUBTITLE}>Enter your email, the token your instructor provided, and your new password.</p>
 
         {error && <div style={ERROR_BOX}>{error}</div>}
 
         <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div>
-            <label htmlFor="email" style={LABEL}>
-              Email
-            </label>
+            <label htmlFor="rp-email" style={LABEL}>Email</label>
             <input
-              id="email"
+              id="rp-email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
               autoComplete="email"
               style={INPUT}
+              aria-label="Email"
             />
           </div>
 
           <div>
-            <label htmlFor="password" style={LABEL}>
-              Password
-            </label>
+            <label htmlFor="rp-token" style={LABEL}>Reset token</label>
             <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              id="rp-token"
+              type="text"
+              value={token}
+              onChange={(e) => setToken(e.target.value.toUpperCase())}
               required
-              autoComplete="current-password"
+              maxLength={8}
+              placeholder="8-character token from your instructor"
+              style={{ ...INPUT, letterSpacing: "0.1em", fontFamily: "monospace" }}
+              aria-label="Reset token"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="rp-newpw" style={LABEL}>New password</label>
+            <input
+              id="rp-newpw"
+              type="password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              required
+              minLength={8}
+              autoComplete="new-password"
               style={INPUT}
+              aria-label="New password"
             />
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            style={loading ? BUTTON_DISABLED : BUTTON}
+            style={{ ...BUTTON, opacity: loading ? 0.6 : 1, cursor: loading ? "not-allowed" : "pointer" }}
           >
-            {loading ? "Signing in..." : "Sign in"}
+            {loading ? "Resetting..." : "Reset password"}
           </button>
-
-          <p style={{ margin: 0, fontSize: 13, textAlign: "center", color: "#8b949e" }}>
-            <Link to="/reset-password" style={LINK}>
-              Forgot your password?
-            </Link>
-          </p>
         </form>
 
         <p style={FOOTER}>
-          Don&apos;t have an account?{" "}
-          <Link to="/register" style={LINK}>
-            Register
+          <Link to="/login" style={LINK}>
+            Back to sign in
           </Link>
         </p>
       </div>

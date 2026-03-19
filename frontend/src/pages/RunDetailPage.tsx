@@ -23,6 +23,8 @@ import { StageStatusBar } from "../components/StageStatusBar";
 import { ResultsTab } from "../components/ResultsTab";
 import { ConfigTab } from "../components/ConfigTab";
 import { AiChatTab } from "../components/AiChatTab";
+import { AppHeader } from "../components/AppHeader/AppHeader";
+import { ChangePasswordModal } from "../components/ChangePasswordModal/ChangePasswordModal";
 import { useStore } from "../store";
 import { POLL_INTERVAL_MS } from "../constants";
 
@@ -59,6 +61,7 @@ export default function RunDetailPage(): React.ReactElement {
   const [activeTab, setActiveTab] = useState<Tab>("logs");
   const [cancelling, setCancelling] = useState(false);
   const [artifacts, setArtifacts] = useState<ArtifactURLs | null>(null);
+  const [changePwOpen, setChangePwOpen] = useState(false);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   // Track status in a ref so the polling effect doesn't re-mount on every status change
   const statusRef = useRef<string | null>(null);
@@ -168,62 +171,67 @@ export default function RunDetailPage(): React.ReactElement {
         flexDirection: "column",
       }}
     >
-      {/* Header */}
-      <header style={{ padding: "16px 24px", borderBottom: "1px solid #30363d", background: "#161b22", flexShrink: 0 }}>
-        <nav style={{ fontSize: 13, color: "#8b949e", marginBottom: 8 }}>
-          <Link to="/projects" style={{ color: "#58a6ff", textDecoration: "none" }}>Projects</Link>
-          <span style={{ margin: "0 8px" }}>&rsaquo;</span>
-          <Link
-            to={`/projects/${projectId}`}
-            style={{ color: "#58a6ff", textDecoration: "none" }}
-          >
-            {projectName || "Project"}
-          </Link>
-          <span style={{ margin: "0 8px" }}>&rsaquo;</span>
-          <span style={{ color: "#f0f6fc" }}>Run {run?.id?.slice(0, 8) ?? "..."}</span>
-        </nav>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <h2 style={{ margin: 0, fontSize: 18, color: "#f0f6fc" }}>
-              Run Detail
-            </h2>
-            {runStatus && (
-              <span
-                style={{
-                  fontSize: 11,
-                  padding: "2px 8px",
-                  borderRadius: 12,
-                  fontWeight: 600,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.05em",
-                  background: running ? "#1f3a5f" : runStatus === "complete" ? "#1f4022" : "#3d1f1f",
-                  color: running ? "#58a6ff" : runStatus === "complete" ? "#3fb950" : "#f85149",
-                }}
-              >
-                {runStatus}
-              </span>
-            )}
-          </div>
-          {running && (
-            <button
-              onClick={handleCancel}
-              disabled={cancelling}
+      <AppHeader
+        breadcrumbs={
+          <span style={{ color: "#8b949e" }}>
+            <Link to="/projects" style={{ color: "#58a6ff", textDecoration: "none" }}>Projects</Link>
+            {" › "}
+            <Link
+              to={`/projects/${projectId}`}
+              style={{ color: "#58a6ff", textDecoration: "none" }}
+            >
+              {projectName || "…"}
+            </Link>
+            {" › "}
+            <span style={{ color: "#e6edf3" }}>Run {run?.id?.slice(0, 8) ?? "…"}</span>
+          </span>
+        }
+        onChangePassword={() => setChangePwOpen(true)}
+      />
+      <ChangePasswordModal open={changePwOpen} onClose={() => setChangePwOpen(false)} />
+
+      {/* Run status toolbar */}
+      <div style={{ padding: "12px 24px", borderBottom: "1px solid #30363d", background: "#161b22", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <h2 style={{ margin: 0, fontSize: 18, color: "#f0f6fc" }}>
+            Run Detail
+          </h2>
+          {runStatus && (
+            <span
               style={{
-                padding: "6px 14px",
-                background: cancelling ? "#21262d" : "#da3633",
-                color: cancelling ? "#6e7681" : "#fff",
-                border: "none",
-                borderRadius: 6,
-                cursor: cancelling ? "not-allowed" : "pointer",
-                fontSize: 13,
+                fontSize: 11,
+                padding: "2px 8px",
+                borderRadius: 12,
                 fontWeight: 600,
+                textTransform: "uppercase",
+                letterSpacing: "0.05em",
+                background: running ? "#1f3a5f" : runStatus === "complete" ? "#1f4022" : "#3d1f1f",
+                color: running ? "#58a6ff" : runStatus === "complete" ? "#3fb950" : "#f85149",
               }}
             >
-              {cancelling ? "Cancelling..." : "Cancel Run"}
-            </button>
+              {runStatus}
+            </span>
           )}
         </div>
-      </header>
+        {running && (
+          <button
+            onClick={handleCancel}
+            disabled={cancelling}
+            style={{
+              padding: "6px 14px",
+              background: cancelling ? "#21262d" : "#da3633",
+              color: cancelling ? "#6e7681" : "#fff",
+              border: `1px solid ${cancelling ? "#30363d" : "transparent"}`,
+              borderRadius: 6,
+              cursor: cancelling ? "not-allowed" : "pointer",
+              fontSize: 13,
+              fontWeight: 600,
+            }}
+          >
+            {cancelling ? "Cancelling..." : "Cancel Run"}
+          </button>
+        )}
+      </div>
 
       {/* Stage status bar — permanently visible above tabs */}
       <StageStatusBar stageProgress={stageProgress} />

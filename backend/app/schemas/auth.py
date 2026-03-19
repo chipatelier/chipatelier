@@ -27,6 +27,21 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
 
 
+class ChangePasswordRequest(BaseModel):
+    """Request body for changing the authenticated user's password."""
+
+    current_password: str
+    new_password: str = Field(min_length=8)
+
+
+class ResetPasswordRequest(BaseModel):
+    """Request body for resetting a forgotten password via admin-issued token."""
+
+    email: EmailStr
+    token: str
+    new_password: str = Field(min_length=8)
+
+
 class UserResponse(BaseModel):
     """Public user profile returned by the API."""
 
@@ -37,4 +52,5 @@ class UserResponse(BaseModel):
     display_name: str | None
     role: str
     storage_used_bytes: int
+    storage_quota_bytes: int | None = None
     created_at: datetime

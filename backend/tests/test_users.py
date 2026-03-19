@@ -84,3 +84,22 @@ async def test_get_me_returns_storage(test_client: TestClient):
     assert isinstance(data["storage_used_bytes"], int)
     assert "id" in data
     assert data["role"] == "student"
+
+
+def test_get_me_returns_storage_quota_bytes(test_client):
+    """GET /users/me must include storage_quota_bytes field (None when no institution)."""
+    test_client.post(
+        "/api/v1/auth/register",
+        json={"email": "quota_user@example.com", "password": "securepass1"},
+    )
+    login_resp = test_client.post(
+        "/api/v1/auth/login",
+        json={"email": "quota_user@example.com", "password": "securepass1"},
+    )
+    token = login_resp.json()["access_token"]
+
+    resp = test_client.get("/api/v1/users/me", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "storage_quota_bytes" in data
+    assert data["storage_quota_bytes"] is None  # no institution yet

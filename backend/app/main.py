@@ -156,3 +156,8 @@ app.include_router(submissions_router, prefix="/api/v1", tags=["submissions"])
 from app.api.routes.query import router as query_router
 
 app.include_router(query_router, prefix="/api/v1", tags=["query"])
+
+# --- Admin routes ---
+from app.api.routes.admin import router as admin_router
+
+app.include_router(admin_router, prefix="/api/v1/admin", tags=["admin"])
