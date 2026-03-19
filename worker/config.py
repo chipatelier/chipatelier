@@ -15,6 +15,8 @@ class WorkerSettings(BaseSettings):
     MINIO_SECRET_KEY: str = "minioadmin"
     S3_BUCKET_ARTIFACTS: str = "chipatelier-artifacts"
     
+    MAX_CONCURRENT_JOBS: int = 12
+
     # OpenROAD
     # Note: PDK_ROOT is NOT used by ORFS. ORFS bundles all platform files (sky130hd,
     # gf180, asap7) inside the image at /OpenROAD-flow-scripts/flow/platforms/.

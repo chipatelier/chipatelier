@@ -124,7 +124,7 @@ def run_orfs_job(self, run_id: str) -> None:
         - Does NOT retry on timeout
     """
     import docker.errors as docker_errors
-    from app.core.config import get_settings
+    from config import get_settings
 
     settings = get_settings()
 
@@ -137,7 +137,10 @@ def run_orfs_job(self, run_id: str) -> None:
     redis_client = redis.Redis.from_url(settings.REDIS_URL, decode_responses=False)
     manager = ContainerManager()
     container = None
-    workspace = f"/tmp/workspace_{run_id}"
+    # Must be under /tmp/chipatelier_workspaces — a host bind-mount shared between
+    # the orfs-worker container and the Docker daemon so ORFS job containers can
+    # mount the same path. A plain /tmp path would be local to the worker container.
+    workspace = f"/tmp/chipatelier_workspaces/workspace_{run_id}"
 
     def publish_line(line: str) -> None:
         """Publish a log line to Redis pubsub and append to the replay buffer."""
