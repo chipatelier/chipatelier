@@ -75,7 +75,7 @@ try:
         Pops from fair_queue sorted set and sends to run_orfs_job Celery task.
         Only dispatches if there is capacity (running job count < MAX_CONCURRENT_JOBS).
         """
-        from app.core.config import get_settings
+        from config import get_settings
         from sqlalchemy import create_engine, text
         from sqlalchemy.orm import Session
 

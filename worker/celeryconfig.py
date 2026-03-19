@@ -16,6 +16,18 @@ broker_url = os.environ.get("REDIS_URL", "redis://redis:6379/0")
 result_backend = os.environ.get("REDIS_URL", "redis://redis:6379/0")
 broker_connection_retry_on_startup = True
 
+# Explicitly import all task modules.
+# autodiscover_tasks(["tasks"]) would look for tasks.tasks (appends related_name),
+# which doesn't exist — so we list modules directly instead.
+imports = [
+    "tasks.orfs_job",
+    "tasks.fair_queue",
+    "tasks.tile_generator",
+    "tasks.vnc_session",
+    "tasks.watchdog",
+    "tasks.warm_pool_task",
+]
+
 task_serializer = "json"
 result_serializer = "json"
 accept_content = ["json"]
