@@ -60,9 +60,23 @@ class StorageService:
             url = url.replace(self._internal_endpoint, self._public_endpoint, 1)
         return url
 
-    def download_file(self, key: str, local_path: str) -> None:
+    def download_file_to_path(self, key: str, local_path: str) -> None:
         """Download a file from S3/MinIO to a local path."""
         self._client.download_file(self._bucket, key, local_path)
+
+    def download_file(self, key: str) -> bytes:
+        """Download an object from S3/MinIO and return its bytes."""
+        response = self._client.get_object(Bucket=self._bucket, Key=key)
+        return response["Body"].read()
+
+    def list_files(self, prefix: str) -> list[str]:
+        """List all object keys under the given S3/MinIO prefix."""
+        keys: list[str] = []
+        paginator = self._client.get_paginator("list_objects_v2")
+        for page in paginator.paginate(Bucket=self._bucket, Prefix=prefix):
+            for obj in page.get("Contents", []):
+                keys.append(obj["Key"])
+        return keys
 
     def delete_prefix(self, prefix: str) -> int:
         """Delete all objects with the given prefix. Returns count of deleted objects."""

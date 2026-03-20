@@ -132,7 +132,7 @@ async def click_to_inspect(
 
     try:
         storage = StorageService(settings)
-        storage.download_file(odb_minio_key, odb_local_path)
+        storage.download_file_to_path(odb_minio_key, odb_local_path)
 
         # --- 6. Build OpenROAD Python query script ---
         script = _QUERY_SCRIPT_TEMPLATE.format(

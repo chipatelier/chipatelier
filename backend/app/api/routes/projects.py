@@ -1,11 +1,15 @@
 """Project management endpoints.
 
 Routes:
-    POST   /projects           — create project
-    GET    /projects           — list current user's projects
-    GET    /projects/{id}      — get project details
+    POST   /projects              — create project
+    GET    /projects              — list current user's projects
+    GET    /projects/{id}         — get project details
+    DELETE /projects/{id}         — delete project and queue artifact purge
+    PATCH  /projects/{id}         — rename and/or save config.mk
     POST   /projects/{id}/upload  — upload Verilog/config files to MinIO
-    GET    /projects/{id}/runs — list runs for project
+    GET    /projects/{id}/runs    — list runs for project
+    GET    /projects/{id}/source  — fetch latest Verilog content
+    GET    /projects/{id}/config  — fetch current config.mk content
 """
 import uuid
 from typing import Any
@@ -19,7 +23,13 @@ from app.core.database import get_db
 from app.models.project import Project
 from app.models.run import Run
 from app.models.user import User
-from app.schemas.projects import ProjectCreate, ProjectResponse, RunSummary, UploadResponse
+from app.schemas.projects import (
+    ProjectCreate,
+    ProjectResponse,
+    ProjectUpdate,
+    RunSummary,
+    UploadResponse,
+)
 from app.services.storage_service import StorageService, get_storage_service
 
 router = APIRouter(prefix="/projects", tags=["projects"])
@@ -40,6 +50,21 @@ async def _get_project_or_404(project_id: uuid.UUID, db: AsyncSession) -> Projec
     if not project:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
     return project
+
+
+def _build_project_response(project: Project, run_count: int) -> ProjectResponse:
+    """Build a ProjectResponse from a Project model and run count."""
+    return ProjectResponse(
+        id=project.id,
+        name=project.name,
+        pdk=project.pdk,
+        storage_bytes=project.storage_bytes,
+        created_at=project.created_at,
+        run_count=run_count,
+        config_version=project.config_version,
+        verilog_version=project.verilog_version,
+        latest_source_path=project.latest_source_path,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -63,14 +88,7 @@ async def create_project(
     await db.commit()
     await db.refresh(project)
 
-    return ProjectResponse(
-        id=project.id,
-        name=project.name,
-        pdk=project.pdk,
-        storage_bytes=project.storage_bytes,
-        created_at=project.created_at,
-        run_count=0,
-    )
+    return _build_project_response(project, 0)
 
 
 # ---------------------------------------------------------------------------
@@ -95,14 +113,7 @@ async def list_projects(
             select(func.count()).where(Run.project_id == project.id)
         )
         run_count = count_result.scalar_one() or 0
-        responses.append(ProjectResponse(
-            id=project.id,
-            name=project.name,
-            pdk=project.pdk,
-            storage_bytes=project.storage_bytes,
-            created_at=project.created_at,
-            run_count=run_count,
-        ))
+        responses.append(_build_project_response(project, run_count))
     return responses
 
 
@@ -124,14 +135,97 @@ async def get_project(
         select(func.count()).where(Run.project_id == project.id)
     )
     run_count = count_result.scalar_one() or 0
-    return ProjectResponse(
-        id=project.id,
-        name=project.name,
-        pdk=project.pdk,
-        storage_bytes=project.storage_bytes,
-        created_at=project.created_at,
-        run_count=run_count,
+    return _build_project_response(project, run_count)
+
+
+# ---------------------------------------------------------------------------
+# DELETE /projects/{id} — Delete project and queue artifact purge
+# ---------------------------------------------------------------------------
+
+@router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_project(
+    project_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> None:
+    """Delete a project. Blocks if an active run exists."""
+    project = await _get_project_or_404(project_id, db)
+    _check_ownership(project, user)
+
+    # Block delete if active run exists
+    active_result = await db.execute(
+        select(Run).where(
+            Run.project_id == project_id,
+            Run.status.in_(["queued", "starting", "running"]),
+        )
     )
+    if active_result.scalar_one_or_none() is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Cancel the active run before deleting this project",
+        )
+
+    # Collect run artifact paths before deletion
+    runs_result = await db.execute(select(Run).where(Run.project_id == project_id))
+    artifact_paths = [r.artifact_path for r in runs_result.scalars().all() if r.artifact_path]
+
+    # Delete project (cascades to runs via ORM relationship)
+    await db.delete(project)
+    await db.commit()
+
+    # Queue MinIO purge as background Celery task (best-effort)
+    try:
+        from app.tasks.storage_cleanup import purge_project_artifacts
+        purge_project_artifacts.delay(str(project_id), artifact_paths)
+    except Exception:
+        pass  # Best-effort — orphaned artifacts are acknowledged tech debt
+
+
+# ---------------------------------------------------------------------------
+# PATCH /projects/{id} — Rename and/or save config.mk
+# ---------------------------------------------------------------------------
+
+@router.patch("/{project_id}", response_model=ProjectResponse)
+async def update_project(
+    project_id: uuid.UUID,
+    body: ProjectUpdate,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+    storage: StorageService = Depends(get_storage_service),
+) -> ProjectResponse:
+    """Update project name and/or config.mk content."""
+    project = await _get_project_or_404(project_id, db)
+    _check_ownership(project, user)
+
+    if body.name is not None:
+        # Check duplicate name for this user
+        dup = await db.execute(
+            select(Project).where(
+                Project.user_id == user.id,
+                Project.name == body.name,
+                Project.id != project_id,
+            )
+        )
+        if dup.scalar_one_or_none() is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="A project with that name already exists",
+            )
+        project.name = body.name
+
+    if body.config_mk is not None:
+        new_version = project.config_version + 1
+        key = f"projects/{project_id}/config/v{new_version}/config.mk"
+        # Write to MinIO FIRST — only increment DB version on success
+        storage.upload_file(key, body.config_mk.encode(), "text/plain")
+        project.config_version = new_version
+
+    await db.commit()
+    await db.refresh(project)
+
+    count_result = await db.execute(select(func.count()).where(Run.project_id == project.id))
+    run_count = count_result.scalar_one() or 0
+    return _build_project_response(project, run_count)
 
 
 # ---------------------------------------------------------------------------
@@ -147,10 +241,10 @@ async def upload_files(
     user: User = Depends(get_current_user),
     storage: StorageService = Depends(get_storage_service),
 ) -> UploadResponse:
-    """Upload Verilog (.v, .sv) and config (.mk) files to MinIO.
+    """Upload Verilog (.v, .sv) and config (.mk, .sdc) files to MinIO.
 
-    Files are stored at: projects/{project_id}/v{N}/{filename}
-    where N is the next version number.
+    Files are stored at: projects/{project_id}/verilog/v{N}/{filename}
+    where N is the next verilog_version number.
     """
     project = await _get_project_or_404(project_id, db)
     _check_ownership(project, user)
@@ -165,15 +259,9 @@ async def upload_files(
                 detail=f"File '{filename}' has unsupported extension. Allowed: {', '.join(_ALLOWED_EXTENSIONS)}",
             )
 
-    # Determine version number: count existing runs to derive version
-    # (In Phase 1 we don't have a source_versions table, so we use artifact_path convention)
-    from sqlalchemy import select as sa_select
-    runs_result = await db.execute(
-        sa_select(func.count()).where(Run.project_id == project_id)
-    )
-    version_num = (runs_result.scalar_one() or 0) + 1
-
-    source_path = f"projects/{project_id}/v{version_num}"
+    # Use verilog_version for upload versioning
+    new_version = project.verilog_version + 1
+    source_path = f"projects/{project_id}/verilog/v{new_version}"
     total_bytes = 0
 
     # Upload each file
@@ -183,8 +271,10 @@ async def upload_files(
         storage.upload_file(key, content, file.content_type or "application/octet-stream")
         total_bytes += len(content)
 
-    # Update project storage_bytes
+    # Update project tracking fields
     project.storage_bytes += total_bytes
+    project.verilog_version = new_version
+    project.latest_source_path = source_path
     await db.commit()
 
     return UploadResponse(source_path=source_path, file_count=len(files))
@@ -211,3 +301,66 @@ async def list_runs(
     )
     runs = result.scalars().all()
     return [RunSummary.model_validate(run) for run in runs]
+
+
+# ---------------------------------------------------------------------------
+# GET /projects/{id}/source — Fetch latest Verilog content for display
+# ---------------------------------------------------------------------------
+
+@router.get("/{project_id}/source")
+async def get_project_source(
+    project_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+    storage: StorageService = Depends(get_storage_service),
+) -> dict:
+    """Return the latest uploaded Verilog source content."""
+    project = await _get_project_or_404(project_id, db)
+    _check_ownership(project, user)
+
+    if project.latest_source_path is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No Verilog uploaded yet")
+
+    prefix = project.latest_source_path + "/"
+    files = storage.list_files(prefix)
+    verilog_files = sorted([f for f in files if f.endswith((".v", ".sv"))])
+
+    if not verilog_files:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No Verilog uploaded yet")
+
+    parts = [storage.download_file(f).decode("utf-8", errors="replace") for f in verilog_files]
+    content = "\n\n".join(parts)
+
+    if len(verilog_files) == 1:
+        filename = verilog_files[0].split("/")[-1]
+    else:
+        first = verilog_files[0].split("/")[-1]
+        filename = f"{first} ({len(verilog_files)} files)"
+
+    return {"filename": filename, "content": content, "version": project.verilog_version}
+
+
+# ---------------------------------------------------------------------------
+# GET /projects/{id}/config — Fetch current config.mk content
+# ---------------------------------------------------------------------------
+
+@router.get("/{project_id}/config")
+async def get_project_config(
+    project_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+    storage: StorageService = Depends(get_storage_service),
+) -> dict:
+    """Return the current config.mk content and version."""
+    project = await _get_project_or_404(project_id, db)
+    _check_ownership(project, user)
+
+    if project.config_version == 0:
+        return {"content": "", "version": 0}
+
+    key = f"projects/{project_id}/config/v{project.config_version}/config.mk"
+    try:
+        content = storage.download_file(key).decode("utf-8", errors="replace")
+    except Exception:
+        content = ""
+    return {"content": content, "version": project.config_version}

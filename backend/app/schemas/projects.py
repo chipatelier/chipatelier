@@ -43,6 +43,11 @@ class RunSummary(BaseModel):
     # notes intentionally excluded — private
 
 
+class ProjectUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=100)
+    config_mk: str | None = None
+
+
 class UploadResponse(BaseModel):
     source_path: str
     file_count: int
