@@ -10,7 +10,7 @@
  */
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { listProjects, createProject, ProjectResponse } from "../api/projects";
+import { listProjects, createProject, deleteProject, updateProject, ProjectResponse } from "../api/projects";
 import { AppHeader } from "../components/AppHeader/AppHeader";
 import { ChangePasswordModal } from "../components/ChangePasswordModal/ChangePasswordModal";
 
@@ -24,12 +24,24 @@ export default function ProjectListPage(): React.ReactElement {
   const [newProjectName, setNewProjectName] = useState("");
   const [creating, setCreating] = useState(false);
   const [changePwOpen, setChangePwOpen] = useState(false);
+  const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<ProjectResponse | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     listProjects()
       .then(setProjects)
       .catch(() => setError("Failed to load projects"))
       .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    function handleClickOutside() { setMenuOpenId(null); }
+    document.addEventListener("click", handleClickOutside);
+    return () => document.removeEventListener("click", handleClickOutside);
   }, []);
 
   async function handleCreateProject(e: React.FormEvent): Promise<void> {
@@ -45,6 +57,36 @@ export default function ProjectListPage(): React.ReactElement {
       setError("Failed to create project");
     } finally {
       setCreating(false);
+    }
+  }
+
+  async function handleRename(proj: ProjectResponse): Promise<void> {
+    if (!renameValue.trim() || renameValue.trim() === proj.name) {
+      setRenamingId(null);
+      return;
+    }
+    try {
+      const updated = await updateProject(proj.id, { name: renameValue.trim() });
+      setProjects((prev) => prev.map((p) => (p.id === proj.id ? updated : p)));
+    } catch (err: any) {
+      setError(err?.response?.data?.detail ?? "Rename failed");
+    } finally {
+      setRenamingId(null);
+    }
+  }
+
+  async function handleDelete(): Promise<void> {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await deleteProject(deleteTarget.id);
+      setProjects((prev) => prev.filter((p) => p.id !== deleteTarget.id));
+      setDeleteTarget(null);
+    } catch (err: any) {
+      setDeleteError(err?.response?.data?.detail ?? "Delete failed");
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -199,41 +241,87 @@ export default function ProjectListPage(): React.ReactElement {
             }}
           >
             {projects.map((proj) => (
-              <div
-                key={proj.id}
-                onClick={() => navigate(`/projects/${proj.id}`)}
-                style={{
-                  padding: 16,
-                  background: "#161b22",
-                  border: "1px solid #30363d",
-                  borderRadius: 8,
-                  cursor: "pointer",
-                  transition: "border-color 0.15s",
-                }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLDivElement).style.borderColor = "#1f6feb";
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLDivElement).style.borderColor = "#30363d";
-                }}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") navigate(`/projects/${proj.id}`);
-                }}
-              >
-                <h3 style={{ margin: "0 0 8px 0", fontSize: 16, color: "#f0f6fc", fontWeight: 600 }}>
-                  {proj.name}
-                </h3>
-                <div style={{ display: "flex", gap: 12, fontSize: 12, color: "#8b949e" }}>
-                  <span>{proj.run_count} run{proj.run_count !== 1 ? "s" : ""}</span>
-                  <span>PDK: {proj.pdk}</span>
-                </div>
-                <div style={{ fontSize: 11, color: "#6e7681", marginTop: 8 }}>
-                  Created {new Date(proj.created_at).toLocaleDateString()}
+              <div key={proj.id} style={{ position: "relative" }}>
+                {/* Kebab button */}
+                <button
+                  onClick={(e) => { e.stopPropagation(); setMenuOpenId(menuOpenId === proj.id ? null : proj.id); }}
+                  style={{ position: "absolute", top: 8, right: 8, background: "transparent", border: "none", color: "#8b949e", cursor: "pointer", padding: "2px 6px", fontSize: 18, zIndex: 1, lineHeight: 1 }}
+                  aria-label="Project options"
+                >⋮</button>
+
+                {menuOpenId === proj.id && (
+                  <div style={{ position: "absolute", top: 32, right: 8, background: "#161b22", border: "1px solid #30363d", borderRadius: 6, zIndex: 10, minWidth: 120, boxShadow: "0 4px 12px rgba(0,0,0,0.4)" }}>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setRenamingId(proj.id); setRenameValue(proj.name); setMenuOpenId(null); }}
+                      style={{ display: "block", width: "100%", padding: "8px 12px", background: "none", border: "none", color: "#c9d1d9", cursor: "pointer", fontSize: 13, textAlign: "left" as const }}
+                    >Rename</button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setDeleteTarget(proj); setMenuOpenId(null); }}
+                      style={{ display: "block", width: "100%", padding: "8px 12px", background: "none", border: "none", color: "#f85149", cursor: "pointer", fontSize: 13, textAlign: "left" as const }}
+                    >Delete</button>
+                  </div>
+                )}
+
+                {/* Card */}
+                <div
+                  onClick={() => renamingId !== proj.id && navigate(`/projects/${proj.id}`)}
+                  style={{
+                    padding: 16,
+                    background: "#161b22",
+                    border: "1px solid #30363d",
+                    borderRadius: 8,
+                    cursor: renamingId === proj.id ? "default" : "pointer",
+                    transition: "border-color 0.15s",
+                  }}
+                  onMouseEnter={(e) => {
+                    if (renamingId !== proj.id) (e.currentTarget as HTMLDivElement).style.borderColor = "#1f6feb";
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as HTMLDivElement).style.borderColor = "#30363d";
+                  }}
+                >
+                  {renamingId === proj.id ? (
+                    <input
+                      type="text"
+                      autoFocus
+                      value={renameValue}
+                      onChange={(e) => setRenameValue(e.target.value)}
+                      onBlur={() => handleRename(proj)}
+                      onKeyDown={(e) => { if (e.key === "Enter") handleRename(proj); if (e.key === "Escape") setRenamingId(null); }}
+                      onClick={(e) => e.stopPropagation()}
+                      style={{ width: "100%", padding: "4px 8px", background: "#0d1117", border: "1px solid #1f6feb", borderRadius: 4, color: "#f0f6fc", fontSize: 15, fontWeight: 600, boxSizing: "border-box" as const }}
+                    />
+                  ) : (
+                    <h3 style={{ margin: "0 0 8px 0", fontSize: 16, color: "#f0f6fc", fontWeight: 600, paddingRight: 24 }}>{proj.name}</h3>
+                  )}
+                  <div style={{ display: "flex", gap: 12, fontSize: 12, color: "#8b949e" }}>
+                    <span>{proj.run_count} run{proj.run_count !== 1 ? "s" : ""}</span>
+                    <span>PDK: {proj.pdk}</span>
+                  </div>
+                  <div style={{ fontSize: 11, color: "#6e7681", marginTop: 8 }}>
+                    Created {new Date(proj.created_at).toLocaleDateString()}
+                  </div>
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {deleteTarget && (
+          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <div style={{ background: "#161b22", border: "1px solid #30363d", borderRadius: 8, padding: 24, width: 400, maxWidth: "90vw" }}>
+              <h3 style={{ margin: "0 0 12px 0", color: "#f0f6fc", fontSize: 16 }}>Delete {deleteTarget.name}?</h3>
+              <p style={{ color: "#8b949e", fontSize: 13, margin: "0 0 16px 0" }}>
+                This will permanently delete {deleteTarget.run_count} run{deleteTarget.run_count !== 1 ? "s" : ""} and free {(deleteTarget.storage_bytes / 1e9).toFixed(1)} GB of storage. This cannot be undone.
+              </p>
+              {deleteError && <p style={{ color: "#f85149", fontSize: 12, margin: "0 0 12px 0" }}>{deleteError}</p>}
+              <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                <button onClick={() => { setDeleteTarget(null); setDeleteError(null); }} style={{ padding: "6px 14px", background: "transparent", color: "#8b949e", border: "1px solid #30363d", borderRadius: 6, cursor: "pointer", fontSize: 13 }}>Cancel</button>
+                <button onClick={handleDelete} disabled={deleting} style={{ padding: "6px 14px", background: "#da3633", color: "#fff", border: "none", borderRadius: 6, cursor: deleting ? "not-allowed" : "pointer", fontSize: 13, fontWeight: 600 }}>
+                  {deleting ? "Deleting…" : "Delete Project"}
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </main>
