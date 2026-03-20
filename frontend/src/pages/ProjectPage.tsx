@@ -3,7 +3,7 @@
  */
 import React, { useEffect, useState } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
-import { getProject, listRuns, ProjectResponse, RunSummary } from "../api/projects";
+import { getProject, listRuns, deleteProject, updateProject, ProjectResponse, RunSummary } from "../api/projects";
 import { RunHistoryTable } from "../components/RunHistoryTable";
 import { AppHeader } from "../components/AppHeader/AppHeader";
 import { ChangePasswordModal } from "../components/ChangePasswordModal/ChangePasswordModal";
@@ -123,7 +123,6 @@ function SettingsTab({ project, onProjectUpdate }: { project: ProjectResponse; o
     setRenaming(true);
     setRenameError(null);
     try {
-      const { updateProject } = await import("../api/projects");
       const updated = await updateProject(project.id, { name: name.trim() });
       onProjectUpdate(updated);
     } catch (err: any) {
@@ -137,7 +136,6 @@ function SettingsTab({ project, onProjectUpdate }: { project: ProjectResponse; o
     setDeleting(true);
     setDeleteError(null);
     try {
-      const { deleteProject } = await import("../api/projects");
       await deleteProject(project.id);
       navigate("/projects");
     } catch (err: any) {
@@ -154,6 +152,7 @@ function SettingsTab({ project, onProjectUpdate }: { project: ProjectResponse; o
         <h3 style={{ margin: "0 0 12px 0", fontSize: 15, color: "#f0f6fc" }}>Project Name</h3>
         <form onSubmit={handleRename} style={{ display: "flex", gap: 8 }}>
           <input
+            type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
             style={{ flex: 1, padding: "6px 10px", background: "#0d1117", border: "1px solid #30363d", borderRadius: 6, color: "#c9d1d9", fontSize: 13 }}
