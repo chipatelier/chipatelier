@@ -20,8 +20,9 @@ class TargetStage(StrEnum):
 class SubmitRequest(BaseModel):
     project_id: uuid.UUID
     target_stage: TargetStage = TargetStage.FINISH
-    config_overrides: dict[str, Any] = {}
+    config_overrides: dict[str, str] = {}   # str values — Make args are always strings
     source_path: str | None = None  # Path to uploaded files in MinIO (e.g., "projects/{id}/v1")
+    notes: str | None = None
 
 
 class SubmitResponse(BaseModel):

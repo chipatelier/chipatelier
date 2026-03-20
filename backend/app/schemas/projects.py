@@ -20,6 +20,9 @@ class ProjectResponse(BaseModel):
     storage_bytes: int
     created_at: datetime
     run_count: int = 0
+    config_version: int = 0
+    verilog_version: int = 0
+    latest_source_path: str | None = None
 
 
 class RunSummary(BaseModel):
