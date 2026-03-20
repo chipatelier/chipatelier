@@ -15,6 +15,20 @@ export interface ProjectResponse {
   storage_bytes: number;
   created_at: string;
   run_count: number;
+  config_version: number;
+  verilog_version: number;
+  latest_source_path: string | null;
+}
+
+export interface ProjectSourceResponse {
+  filename: string;
+  content: string;
+  version: number;
+}
+
+export interface ProjectConfigResponse {
+  content: string;
+  version: number;
 }
 
 export interface RunSummary {
@@ -90,5 +104,39 @@ export async function uploadFiles(
     `/projects/${projectId}/upload`,
     formData,
   );
+  return data;
+}
+
+/**
+ * Delete a project by ID.
+ */
+export async function deleteProject(id: string): Promise<void> {
+  await apiClient.delete(`/projects/${id}`);
+}
+
+/**
+ * Update a project (name and/or config).
+ */
+export async function updateProject(
+  id: string,
+  body: { name?: string; config_mk?: string }
+): Promise<ProjectResponse> {
+  const { data } = await apiClient.patch<ProjectResponse>(`/projects/${id}`, body);
+  return data;
+}
+
+/**
+ * Get project source files.
+ */
+export async function getProjectSource(id: string): Promise<ProjectSourceResponse> {
+  const { data } = await apiClient.get<ProjectSourceResponse>(`/projects/${id}/source`);
+  return data;
+}
+
+/**
+ * Get project config.
+ */
+export async function getProjectConfig(id: string): Promise<ProjectConfigResponse> {
+  const { data } = await apiClient.get<ProjectConfigResponse>(`/projects/${id}/config`);
   return data;
 }

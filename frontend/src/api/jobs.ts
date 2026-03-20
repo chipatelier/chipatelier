@@ -11,13 +11,15 @@ import { apiClient } from "./client";
 export interface SubmitRequest {
   project_id: string;
   target_stage?: string;
-  config_overrides?: Record<string, unknown>;
-  source_path?: string;  // Path to uploaded files in MinIO
+  config_overrides?: Record<string, string>;
+  source_path?: string;
+  notes?: string;
 }
 
 export interface SubmitResponse {
   run_id: string;
   status: string;
+  queue_priority: string;
 }
 
 export interface RunStatusResponse {
