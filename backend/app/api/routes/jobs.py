@@ -32,7 +32,10 @@ def _check_project_ownership(project: Project, user: User) -> None:
 
 
 async def _get_project_or_404(project_id: uuid.UUID, db: AsyncSession) -> Project:
-    project = await db.get(Project, project_id)
+    result = await db.execute(
+        select(Project).where(Project.id == project_id).execution_options(populate_existing=True)
+    )
+    project = result.scalar_one_or_none()
     if not project:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
     return project

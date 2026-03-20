@@ -22,21 +22,31 @@ def test_submit_blocked_when_no_verilog(test_client):
     assert "Verilog" in resp.json()["detail"]
 
 
-async def test_submit_blocked_when_no_config(test_client, async_session):
+def test_submit_blocked_when_no_config(test_client):
     """Verilog present but no config.mk saved — submit should return 400."""
-    import asyncio
-    from sqlalchemy import text as sqla_text
+    import io
+    from unittest.mock import MagicMock
+    from app.main import app
+    from app.services.storage_service import get_storage_service
 
     email = f"c0-{uuid.uuid4().hex[:8]}@ex.com"
     token, pid = _make_project_with_files(test_client, email)
 
-    # Set latest_source_path to simulate Verilog uploaded, but leave config_version=0
-    await async_session.execute(
-        sqla_text("UPDATE projects SET latest_source_path='projects/x/verilog/v1' WHERE id=:id"),
-        {"id": pid},
-    )
-    await async_session.commit()
+    # Mock storage so verilog upload succeeds without MinIO
+    mock_storage = MagicMock()
+    mock_storage.upload_file.return_value = "ok"
+    app.dependency_overrides[get_storage_service] = lambda: mock_storage
+    try:
+        resp = test_client.post(
+            f"/api/v1/projects/{pid}/upload",
+            files=[("files", ("design.v", io.BytesIO(b"module top(); endmodule"), "text/plain"))],
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert resp.status_code == 200, f"Upload failed: {resp.json()}"
+    finally:
+        del app.dependency_overrides[get_storage_service]
 
+    # Submit without config.mk (config_version is still 0)
     resp = test_client.post(
         "/api/v1/jobs/submit",
         json={"project_id": pid},
