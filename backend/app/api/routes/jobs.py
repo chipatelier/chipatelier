@@ -65,6 +65,12 @@ async def submit_job(
     project = await _get_project_or_404(body.project_id, db)
     _check_project_ownership(project, user)
 
+    # Guard: Verilog must be uploaded and config.mk must be saved
+    if project.latest_source_path is None:
+        raise HTTPException(status_code=400, detail="Upload a Verilog file before submitting a run")
+    if project.config_version == 0:
+        raise HTTPException(status_code=400, detail="Save a config.mk before submitting a run")
+
     # Enforce single-active-run: at most one active run per project
     active_result = await db.execute(
         select(Run).where(
@@ -82,14 +88,22 @@ async def submit_job(
     is_privileged = user.role in ("instructor", "admin")
     queue_priority = "high_priority" if is_privileged else "normal"
 
+    # Build config snapshot: worker expects {"locked_params": {...}, "config_overrides": {...}}
+    # locked_params populated when assignment system exists (Phase 2)
+    config_snapshot = {
+        "locked_params": {},
+        "config_overrides": body.config_overrides or {},
+    }
+
     # Create Run record
     run = Run(
         project_id=body.project_id,
         status="queued",
         target_stage=body.target_stage,
-        config=body.config_overrides if body.config_overrides else None,
+        config=config_snapshot,
         artifact_path=body.source_path,  # Set artifact_path to source location
         queue_priority=queue_priority,
+        notes=body.notes,
     )
     db.add(run)
     await db.commit()

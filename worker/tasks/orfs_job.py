@@ -203,10 +203,18 @@ def run_orfs_job(self, run_id: str) -> None:
         # Map target_stage DB field to ORFS Make target
         make_target = STAGE_TO_TARGET.get(target_stage, "finish")
 
-        # Extract instructor-locked params from config snapshot (stored by submission endpoint)
-        # e.g. {"CLOCK_PERIOD": "10", "PLATFORM": "sky130hd"} → ["CLOCK_PERIOD=10", "PLATFORM=sky130hd"]
+        # Build Make override args from config snapshot.
+        # config_overrides = student-supplied values; locked_params = instructor-enforced values.
+        # Make uses last-wins semantics: locked_params MUST come after config_overrides so
+        # instructor settings always take priority over student values for the same variable.
         locked_params = config_snapshot.get("locked_params", {})
-        locked_args = [f"{k}={v}" for k, v in locked_params.items()]
+        config_overrides = config_snapshot.get("config_overrides", {})
+
+        # Student overrides first, instructor locked_params last (last-wins = instructor priority)
+        make_override_args = (
+            [f"{k}={v}" for k, v in config_overrides.items() if v is not None and str(v) != ""] +
+            [f"{k}={v}" for k, v in locked_params.items()]
+        )
 
         # Download source files from MinIO into workspace
         if artifact_path:
@@ -230,7 +238,7 @@ def run_orfs_job(self, run_id: str) -> None:
                     image=settings.ORFS_IMAGE,
                     workspace_path=workspace,
                     target=make_target,
-                    locked_args=locked_args,
+                    locked_args=make_override_args,
                     settings={
                         "JOB_CPU_CORES": settings.JOB_CPU_CORES,
                         "JOB_RAM_GB": settings.JOB_RAM_GB,

@@ -42,14 +42,26 @@ def _create_project(client, token, name="test_proj"):
     return r.json()["id"]
 
 
+async def _seed_project_ready(async_session, proj_id: str) -> None:
+    """Seed latest_source_path and config_version so pre-submit guards pass."""
+    import uuid as _uuid
+    from sqlalchemy import select as sqla_select
+    project = await async_session.get(Project, _uuid.UUID(proj_id))
+    if project:
+        project.latest_source_path = f"projects/{proj_id}/v1"
+        project.config_version = 1
+        await async_session.flush()
+
+
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
 
-def test_submit_job(test_client, mock_redis):
+async def test_submit_job(test_client, async_session, mock_redis):
     """POST /api/v1/jobs/submit creates a run with status=queued, dispatches Celery task."""
     token = _register_and_login(test_client)
     proj_id = _create_project(test_client, token, "submit_proj")
+    await _seed_project_ready(async_session, proj_id)
 
     with patch("app.core.celery_client.celery_app.send_task") as mock_task:
         mock_result = MagicMock()
@@ -103,10 +115,11 @@ def test_submit_job_other_users_project(test_client):
     assert resp.status_code == 403
 
 
-def test_single_active_run_constraint(test_client):
+async def test_single_active_run_constraint(test_client, async_session):
     """POST /api/v1/jobs/submit returns 409 when a run is already active."""
     token = _register_and_login(test_client)
     proj_id = _create_project(test_client, token, "conflict_proj")
+    await _seed_project_ready(async_session, proj_id)
 
     with patch("app.core.celery_client.celery_app.send_task") as mock_task:
         mock_result = MagicMock()
@@ -130,10 +143,11 @@ def test_single_active_run_constraint(test_client):
     assert r2.status_code == 409, r2.text
 
 
-def test_get_job_status(test_client):
+async def test_get_job_status(test_client, async_session):
     """GET /api/v1/jobs/{id} returns current run status."""
     token = _register_and_login(test_client)
     proj_id = _create_project(test_client, token, "status_proj")
+    await _seed_project_ready(async_session, proj_id)
 
     with patch("app.core.celery_client.celery_app.send_task") as mock_task:
         mock_result = MagicMock()
@@ -164,11 +178,12 @@ def test_get_job_status_not_found(test_client):
     assert resp.status_code == 404
 
 
-def test_get_job_status_ownership(test_client):
+async def test_get_job_status_ownership(test_client, async_session):
     """GET /api/v1/jobs/{id} returns 403 for another user's job."""
     token_owner = _register_and_login(test_client)
     token_other = _register_and_login(test_client)
     proj_id = _create_project(test_client, token_owner, "status_own_proj")
+    await _seed_project_ready(async_session, proj_id)
 
     with patch("app.core.celery_client.celery_app.send_task") as mock_task:
         mock_result = MagicMock()
@@ -186,10 +201,11 @@ def test_get_job_status_ownership(test_client):
     assert resp.status_code == 403
 
 
-def test_cancel_queued_job(test_client):
+async def test_cancel_queued_job(test_client, async_session):
     """DELETE /api/v1/jobs/{id} on a queued run sets status=cancelled."""
     token = _register_and_login(test_client)
     proj_id = _create_project(test_client, token, "cancel_proj")
+    await _seed_project_ready(async_session, proj_id)
 
     with patch("app.core.celery_client.celery_app.send_task") as mock_task:
         mock_result = MagicMock()
@@ -212,10 +228,11 @@ def test_cancel_queued_job(test_client):
     assert status_resp.json()["status"] == "cancelled"
 
 
-def test_cancel_completed_job_returns_400(test_client, async_session):
+async def test_cancel_completed_job_returns_400(test_client, async_session):
     """DELETE /api/v1/jobs/{id} on a completed run returns 400."""
     token = _register_and_login(test_client)
     proj_id = _create_project(test_client, token, "cancel400_proj")
+    await _seed_project_ready(async_session, proj_id)
 
     with patch("app.core.celery_client.celery_app.send_task") as mock_task:
         mock_result = MagicMock()
@@ -241,10 +258,11 @@ def test_cancel_completed_job_returns_400(test_client, async_session):
     assert cancel_again.status_code == 400
 
 
-def test_config_overrides_stored(test_client):
+async def test_config_overrides_stored(test_client, async_session):
     """POST /api/v1/jobs/submit stores config_overrides in run.config JSONB."""
     token = _register_and_login(test_client)
     proj_id = _create_project(test_client, token, "config_proj")
+    await _seed_project_ready(async_session, proj_id)
 
     overrides = {"CLOCK_PERIOD": "5", "CORE_UTILIZATION": "40"}
     with patch("app.core.celery_client.celery_app.send_task") as mock_task:
