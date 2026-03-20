@@ -2,7 +2,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import BigInteger, DateTime, ForeignKey, String, text
+from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, String, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -26,6 +26,9 @@ class Project(Base):
     name: Mapped[str] = mapped_column(String, nullable=False)
     pdk: Mapped[str] = mapped_column(String, nullable=False, default="sky130hd")
     storage_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    config_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    verilog_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    latest_source_path: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
