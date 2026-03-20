@@ -1,4 +1,5 @@
 """Tests for DELETE/PATCH/GET-source/GET-config project endpoints."""
+import uuid
 import pytest
 from unittest.mock import MagicMock, patch, AsyncMock
 
@@ -9,8 +10,9 @@ def _auth_header(token: str) -> dict:
 
 def _make_user_and_project(test_client):
     """Register user, login, create project. Returns (token, project_id)."""
-    test_client.post("/api/v1/auth/register", json={"email": "u@ex.com", "password": "pass1234"})
-    token = test_client.post("/api/v1/auth/login", json={"email": "u@ex.com", "password": "pass1234"}).json()["access_token"]
+    email = f"user-{uuid.uuid4().hex[:8]}@ex.com"
+    test_client.post("/api/v1/auth/register", json={"email": email, "password": "pass1234"})
+    token = test_client.post("/api/v1/auth/login", json={"email": email, "password": "pass1234"}).json()["access_token"]
     proj = test_client.post("/api/v1/projects", json={"name": "myproj"}, headers=_auth_header(token)).json()
     return token, proj["id"]
 

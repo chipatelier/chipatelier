@@ -82,7 +82,7 @@ async def test_click_to_inspect_hit(test_client: TestClient, async_session):
     with patch("app.api.routes.query.subprocess.run", return_value=mock_proc) as mock_run:
         with patch("app.api.routes.query.StorageService") as mock_storage_cls:
             mock_storage_inst = MagicMock()
-            mock_storage_inst.download_file = MagicMock(return_value=None)
+            mock_storage_inst.download_file_to_path = MagicMock(return_value=None)
             mock_storage_cls.return_value = mock_storage_inst
 
             resp = test_client.get(
@@ -118,7 +118,7 @@ async def test_click_to_inspect_miss(test_client: TestClient, async_session):
     with patch("app.api.routes.query.subprocess.run", return_value=mock_proc):
         with patch("app.api.routes.query.StorageService") as mock_storage_cls:
             mock_storage_inst = MagicMock()
-            mock_storage_inst.download_file = MagicMock(return_value=None)
+            mock_storage_inst.download_file_to_path = MagicMock(return_value=None)
             mock_storage_cls.return_value = mock_storage_inst
 
             resp = test_client.get(

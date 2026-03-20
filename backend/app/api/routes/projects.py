@@ -174,11 +174,21 @@ async def delete_project(
     await db.commit()
 
     # Queue MinIO purge as background Celery task (best-effort)
+    import logging
+    _logger = logging.getLogger(__name__)
     try:
-        from app.tasks.storage_cleanup import purge_project_artifacts
-        purge_project_artifacts.delay(str(project_id), artifact_paths)
-    except Exception:
-        pass  # Best-effort — orphaned artifacts are acknowledged tech debt
+        from app.core.celery_client import celery_app as _celery
+        _celery.send_task(
+            "tasks.storage_cleanup.purge_project_artifacts",
+            args=[str(project_id), artifact_paths],
+        )
+    except ImportError:
+        _logger.warning(
+            "Celery not available in this context; project artifact purge skipped for project %s",
+            project_id,
+        )
+    except Exception as exc:
+        _logger.warning("Failed to queue artifact purge for project %s: %s", project_id, exc)
 
 
 # ---------------------------------------------------------------------------
