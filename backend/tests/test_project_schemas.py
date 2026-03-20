@@ -1,8 +1,9 @@
 """Schema field tests for ProjectResponse and SubmitRequest."""
-from app.schemas.projects import ProjectResponse
-from app.schemas.jobs import SubmitRequest
 import uuid
 from datetime import datetime, timezone
+
+from app.schemas.jobs import SubmitRequest
+from app.schemas.projects import ProjectResponse
 
 
 def test_project_response_has_new_fields():
