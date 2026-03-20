@@ -79,7 +79,7 @@ class AdvisorResponse(BaseModel):
 
 _log = logging.getLogger("chipatelier.ai")
 
-_CONNECT_ERRORS = (httpx.ConnectError, httpx.TimeoutException)
+_CONNECT_ERRORS = (httpx.ConnectError, httpx.TimeoutException, httpx.RemoteProtocolError)
 _RETRY_ATTEMPTS = 3
 _RETRY_BACKOFF = 5  # seconds between retries
 
@@ -150,7 +150,7 @@ async def explain_log(
     redis = await get_redis()
     ctx = await build_run_context(run, redis, log_lines=body.log_lines)
     prompt = PROMPT_REGISTRY["explain_log"](ctx)
-    result = await safe_generate(prompt, max_tokens=1024)
+    result = await safe_generate(prompt, max_tokens=2048)
     return ExplainResponse(explanation=result, model=get_settings().OLLAMA_MODEL)
 
 
@@ -166,7 +166,7 @@ async def explain_timing(
     redis = await get_redis()
     ctx = await build_run_context(run, redis, log_lines=body.log_lines)
     prompt = PROMPT_REGISTRY["explain_timing"](ctx)
-    result = await safe_generate(prompt, max_tokens=1024)
+    result = await safe_generate(prompt, max_tokens=2048)
     return ExplainResponse(explanation=result, model=get_settings().OLLAMA_MODEL)
 
 
@@ -182,7 +182,7 @@ async def explain_drc(
     redis = await get_redis()
     ctx = await build_run_context(run, redis, log_lines=body.log_lines)
     prompt = PROMPT_REGISTRY["explain_drc"](ctx)
-    result = await safe_generate(prompt, max_tokens=1024)
+    result = await safe_generate(prompt, max_tokens=2048)
     return ExplainResponse(explanation=result, model=get_settings().OLLAMA_MODEL)
 
 
@@ -202,7 +202,7 @@ async def advisor_config(
     redis = await get_redis()
     ctx = await build_run_context(run, redis, log_lines=50)
     prompt = PROMPT_REGISTRY["advisor_config"](ctx)
-    result = await safe_generate(prompt, max_tokens=1024)
+    result = await safe_generate(prompt, max_tokens=2048)
     return AdvisorResponse(suggestions=result, model=get_settings().OLLAMA_MODEL)
 
 

@@ -50,12 +50,16 @@ class OllamaClient(LLMClient):
     async def generate(self, prompt: str, max_tokens: int = 1024) -> str:
         """Generate a completion via Ollama API (non-streaming).
 
-        Strips <think>...</think> reasoning traces emitted by deepseek-r1 models.
+        think=False disables the chain-of-thought reasoning block on models that
+        support it (Qwen3, DeepSeek-R1). This keeps responses within the token
+        budget and avoids VRAM pressure from long KV cache entries.
+        Strips any residual <think>...</think> traces as a fallback.
         """
         response = await self._client.generate(
             model=self._model,
             prompt=prompt,
-            options={"num_predict": max_tokens, "num_ctx": 8192},
+            options={"num_predict": max_tokens, "num_ctx": 4096},
+            think=False,
             stream=False,
             keep_alive=-1,
         )
@@ -72,7 +76,8 @@ class OllamaClient(LLMClient):
             model=self._model,
             messages=messages,
             stream=True,
-            options={"num_ctx": 8192, "num_predict": 512},
+            think=False,
+            options={"num_ctx": 4096, "num_predict": 512},
             keep_alive=-1,
         )
 
